@@ -1,0 +1,72 @@
+<div class="page">
+  <section class="hero card">
+    <app-sprite-character
+      class="hero__character"
+      [character]="character()"
+      animation="idle"
+      [size]="150"
+    />
+    <div class="hero__text">
+      <h1>What shall we play?</h1>
+      @if (dayStreak() > 1) {
+        <p class="hero__streak">
+          <span aria-hidden="true">🔥</span>
+          {{ dayStreak() }} days in a row!
+        </p>
+      } @else {
+        <p class="hero__streak">Pick a game and collect some stars.</p>
+      }
+    </div>
+  </section>
+
+  @if (nextPrize(); as prize) {
+    <a
+      class="nextprize card"
+      [href]="prizesHref()"
+      (click)="go($event, prizesHref())"
+    >
+      <span class="nextprize__emoji" aria-hidden="true">{{ prize.emoji }}</span>
+      <span class="nextprize__body">
+        <strong>Next prize: {{ prize.name }}</strong>
+        <span class="hint">
+          {{ starsToNextPrize() }} more
+          {{ starsToNextPrize() === 1 ? 'star' : 'stars' }} to go
+        </span>
+        <span
+          class="bar"
+          role="progressbar"
+          [attr.aria-valuenow]="progressPercent()"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-label]="'Progress to ' + prize.name"
+        >
+          <span class="bar__fill" [style.width.%]="progressToNextPrize() * 100"></span>
+        </span>
+      </span>
+    </a>
+  }
+
+  <h2 class="section-title">Games</h2>
+  <ul class="games">
+    @for (card of cards(); track card.pack.id) {
+      <li>
+        <a
+          class="game"
+          [href]="card.href"
+          [style.--accent]="card.pack.colour"
+          (click)="go($event, card.href, card.level)"
+        >
+          <span class="game__emoji" aria-hidden="true">{{ card.pack.emoji }}</span>
+          <span class="game__body">
+            <strong class="game__title">{{ card.pack.title }}</strong>
+            <span class="game__desc">{{ card.pack.description }}</span>
+            <span class="game__level">
+              Level {{ card.level }} · {{ card.levelName }}
+            </span>
+          </span>
+          <span class="game__go" aria-hidden="true">▶</span>
+        </a>
+      </li>
+    }
+  </ul>
+</div>

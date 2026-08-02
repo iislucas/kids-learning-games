@@ -1,0 +1,66 @@
+@if (showChrome()) {
+  <header class="topbar">
+    <a class="brand" [href]="homeHref()" (click)="navigate($event, homeHref())">
+      <span class="brand__mark" aria-hidden="true">🦊</span>
+      <span class="brand__text">Play &amp; Learn</span>
+    </a>
+
+    <div class="topbar__right">
+      <a class="stars" [href]="prizesHref()" (click)="navigate($event, prizesHref())">
+        <span aria-hidden="true">⭐</span>
+        <strong>{{ stars() }}</strong>
+        <span class="visually-hidden">stars earned. Go to prizes.</span>
+      </a>
+
+      <button
+        class="icon-btn"
+        type="button"
+        (click)="toggleSounds()"
+        [attr.aria-pressed]="soundsOn()"
+        [attr.aria-label]="soundsOn() ? 'Turn sound off' : 'Turn sound on'"
+      >
+        {{ soundsOn() ? '🔊' : '🔇' }}
+      </button>
+
+      <a
+        class="icon-btn"
+        [href]="settingsHref()"
+        (click)="navigate($event, settingsHref())"
+        aria-label="Settings"
+        >⚙️</a
+      >
+    </div>
+  </header>
+}
+
+<main>
+  @switch (view()) {
+    @case (Views.Home) {
+      <app-home-page />
+    }
+    @case (Views.Play) {
+      <app-play-page />
+    }
+    @case (Views.Prizes) {
+      <app-prizes-page />
+    }
+    @case (Views.MediaStudio) {
+      <app-media-studio-page />
+    }
+    @case (Views.Settings) {
+      <app-settings-page />
+    }
+    @default {
+      <div class="page">
+        <div class="card notfound">
+          <p class="notfound__emoji" aria-hidden="true">🐾</p>
+          <h1>Nothing here</h1>
+          <p>That page does not exist.</p>
+          <a class="btn" [href]="homeHref()" (click)="navigate($event, homeHref())"
+            >Back to the games</a
+          >
+        </div>
+      </div>
+    }
+  }
+</main>

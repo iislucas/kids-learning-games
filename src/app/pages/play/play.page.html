@@ -1,0 +1,156 @@
+@if (pack(); as pack) {
+  <div class="play" [style.--accent]="accentColour()">
+    <app-confetti-burst [trigger]="confettiTrigger()" />
+
+    <header class="playbar">
+      <a
+        class="playbar__back"
+        [href]="homeHref()"
+        (click)="go($event, homeHref())"
+        aria-label="Back to the games"
+        >✕</a
+      >
+      <div class="playbar__title">
+        <strong>{{ pack.emoji }} {{ pack.title }}</strong>
+        <span class="hint">Level {{ level() }} · {{ levelName() }}</span>
+      </div>
+      <span class="playbar__stars"><span aria-hidden="true">⭐</span>{{ stars() }}</span>
+    </header>
+
+    @if (snapshot(); as snap) {
+      @if (snap.phase === 'finished') {
+        <section class="finish card">
+          <app-sprite-character
+            [character]="character()"
+            animation="celebrate"
+            [size]="180"
+          />
+          <h1>Round finished!</h1>
+          <p class="finish__score">
+            You got <strong>{{ snap.correctCount }}</strong> out of
+            <strong>{{ snap.totalQuestions }}</strong>
+          </p>
+
+          @if (snap.correctCount === snap.totalQuestions) {
+            <p class="finish__note">Perfect score! Amazing! 🌟</p>
+          } @else if (snap.correctCount >= 7) {
+            <p class="finish__note">Brilliant work! 🎉</p>
+          } @else {
+            <p class="finish__note">Good try — let's do another! 💪</p>
+          }
+
+          <div class="finish__actions">
+            <button class="btn btn--block" type="button" (click)="playAgain()">
+              Play again
+            </button>
+            @if (canLevelUp()) {
+              <button
+                class="btn btn--block btn--level"
+                type="button"
+                (click)="nextLevel()"
+              >
+                Try level {{ level() + 1 }} ↑
+              </button>
+            }
+            <a
+              class="btn btn--ghost btn--block"
+              [href]="homeHref()"
+              (click)="go($event, homeHref())"
+              >Choose another game</a
+            >
+          </div>
+        </section>
+      } @else {
+        <div class="round">
+          <div class="round__meter">
+            <span
+              class="round__fill"
+              [style.width.%]="(snap.questionNumber - 1) * (100 / snap.totalQuestions)"
+            ></span>
+          </div>
+          <p class="round__count">
+            Question {{ snap.questionNumber }} of {{ snap.totalQuestions }}
+            @if (snap.streak >= 3) {
+              <span class="round__streak">🔥 {{ snap.streak }} in a row!</span>
+            }
+          </p>
+        </div>
+
+        <section class="stage">
+          <app-sprite-character
+            class="stage__character"
+            [character]="character()"
+            [animation]="animation()"
+            [size]="150"
+          />
+
+          <div class="bubble" aria-live="polite">
+            @if (snap.phase === 'asking') {
+              @if (snap.question.instruction) {
+                <p class="bubble__instruction">{{ snap.question.instruction }}</p>
+              }
+              <p class="bubble__prompt">{{ snap.question.prompt }}</p>
+            } @else if (lastWasCorrect()) {
+              <p class="bubble__prompt bubble__prompt--good">Yes! 🎉</p>
+              @if (starsJustWon() > 1) {
+                <p class="bubble__instruction">+{{ starsJustWon() }} stars!</p>
+              } @else {
+                <p class="bubble__instruction">+1 star</p>
+              }
+            } @else {
+              <p class="bubble__prompt bubble__prompt--bad">Not quite!</p>
+              @if (snap.question.explanation) {
+                <p class="bubble__instruction">{{ snap.question.explanation }}</p>
+              }
+            }
+          </div>
+        </section>
+
+        @if (newPrizes().length > 0) {
+          <div class="prizewon" role="status">
+            @for (prize of newPrizes(); track prize.id) {
+              <span class="prizewon__item">
+                <span class="prizewon__emoji" aria-hidden="true">{{ prize.emoji }}</span>
+                New prize: <strong>{{ prize.name }}</strong>
+              </span>
+            }
+          </div>
+        }
+
+        <ul class="choices">
+          @for (choice of snap.question.choices; track $index) {
+            <li>
+              <button
+                type="button"
+                class="choice"
+                [class.choice--right]="choiceState($index) === 'right'"
+                [class.choice--wrong]="choiceState($index) === 'wrong'"
+                [class.choice--dimmed]="choiceState($index) === 'dimmed'"
+                [disabled]="snap.phase !== 'asking'"
+                (click)="answer($index)"
+              >
+                {{ choice }}
+              </button>
+            </li>
+          }
+        </ul>
+
+        @if (snap.phase === 'revealing') {
+          <button class="btn btn--ghost next" type="button" (click)="next()">
+            Next →
+          </button>
+        }
+      }
+    }
+  </div>
+} @else {
+  <div class="page">
+    <div class="card">
+      <h1>Game not found</h1>
+      <p>That game does not exist.</p>
+      <a class="btn" [href]="homeHref()" (click)="go($event, homeHref())"
+        >Back to the games</a
+      >
+    </div>
+  </div>
+}

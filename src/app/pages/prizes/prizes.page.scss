@@ -1,0 +1,119 @@
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
+
+  h1 {
+    margin-bottom: 2px;
+  }
+}
+
+.summary__count {
+  margin: 0 0 2px;
+  font-size: 1.1rem;
+}
+
+.stats {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--paper);
+    border-radius: var(--radius);
+    box-shadow: 0 3px 0 var(--line);
+    padding: 12px 14px;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+
+  strong {
+    font-size: 1.15rem;
+    color: var(--ink);
+  }
+}
+
+@media (min-width: 560px) {
+  .stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.collection {
+  margin-bottom: 24px;
+}
+
+.collection__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  margin: 0 4px 10px;
+}
+
+.collection__count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.collection__trophy {
+  font-size: 1.3rem;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+}
+
+.prize {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 4px 0 var(--line);
+  padding: 6px;
+  text-align: center;
+}
+
+.prize__emoji {
+  font-size: 2.1rem;
+  line-height: 1;
+}
+
+.prize__name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.15;
+}
+
+/* Locked prizes stay visible as silhouettes: knowing what is next is the
+   point, so they are greyed rather than hidden. */
+.prize--locked {
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: none;
+  border: 2px dashed var(--line);
+
+  .prize__emoji {
+    filter: grayscale(1);
+    opacity: 0.3;
+  }
+}

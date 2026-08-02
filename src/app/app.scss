@@ -1,0 +1,83 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 10px 14px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.brand__mark {
+  font-size: 1.6rem;
+}
+
+/* The wordmark is decoration; on a narrow phone the space is better spent on
+   the star count and controls. */
+@media (max-width: 380px) {
+  .brand__text {
+    display: none;
+  }
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 1.05rem;
+
+  strong {
+    font-weight: 800;
+  }
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+  font-size: 1.2rem;
+  text-decoration: none;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+
+  &:active {
+    transform: translateY(3px);
+    box-shadow: none;
+  }
+}
+
+.notfound {
+  text-align: center;
+}
+
+.notfound__emoji {
+  font-size: 3.5rem;
+  margin: 0;
+}

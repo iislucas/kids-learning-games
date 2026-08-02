@@ -1,0 +1,201 @@
+.block {
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 12px;
+  /* Horizontal scroll rather than wrapping keeps the tab row one line on a
+     narrow phone. */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  button {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: var(--paper);
+    box-shadow: 0 3px 0 var(--line);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Nested so this out-specifies `.tabs button` above. Selected on its own,
+     `.tabs__on` loses the background but still wins `color`, which paints the
+     label white on white. */
+  .tabs__on {
+    background: var(--brand);
+    color: #fff;
+    box-shadow: 0 3px 0 var(--brand-dark);
+  }
+}
+
+.notice {
+  background: #e6f8f0;
+  border: 2px solid var(--good);
+  color: var(--good-dark);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff8e2;
+  border: 2px solid var(--gold);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 0, 0, 0.15);
+  border-top-color: var(--brand);
+  animation: spin 0.8s linear infinite;
+  flex: 0 0 auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: repeating-conic-gradient(#f4f1fb 0% 25%, #ffffff 0% 50%) 0 0 / 20px 20px;
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.preview__controls {
+  flex: 1;
+  min-width: 180px;
+
+  p {
+    margin-bottom: 8px;
+  }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  margin: 0 6px 6px 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 0 var(--line);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.chip--on {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 2px 0 var(--brand-dark);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* A file input styled as a button; the real input is hidden inside the label. */
+.upload {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+.details {
+  margin-bottom: 16px;
+
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #faf8ff;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    max-height: 260px;
+    overflow: auto;
+  }
+}
+
+.rawimage {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 2px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.sound {
+  padding: 14px 0;
+  border-bottom: 2px solid var(--line);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    resize: vertical;
+  }
+}
+
+.sound__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+code {
+  background: #f2eefb;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.9em;
+}

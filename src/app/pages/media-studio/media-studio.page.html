@@ -1,0 +1,337 @@
+<div class="page">
+  <h1>Media studio 🎨</h1>
+  <p class="hint">
+    Make a new character and new sounds for the game. Everything you make is
+    saved on this device only.
+  </p>
+
+  <nav class="tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'sprites'"
+      [class.tabs__on]="tab() === 'sprites'"
+      (click)="setTab('sprites')"
+    >
+      🦊 Character
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'sounds'"
+      [class.tabs__on]="tab() === 'sounds'"
+      (click)="setTab('sounds')"
+    >
+      🔔 Sounds
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'music'"
+      [class.tabs__on]="tab() === 'music'"
+      (click)="setTab('music')"
+    >
+      🎵 Music
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'keys'"
+      [class.tabs__on]="tab() === 'keys'"
+      (click)="setTab('keys')"
+    >
+      🔑 Keys
+    </button>
+  </nav>
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+  @if (notice(); as message) {
+    <p class="notice" role="status">{{ message }}</p>
+  }
+  @if (busy(); as label) {
+    <p class="busy" role="status"><span class="spinner"></span>{{ label }}</p>
+  }
+
+  @switch (tab()) {
+    @case ('sprites') {
+      <section class="card block">
+        <h2>Your character now</h2>
+        <div class="preview">
+          <app-sprite-character
+            [character]="character()"
+            [animation]="previewAnimation()"
+            [size]="160"
+          />
+          <div class="preview__controls">
+            <p class="hint">Tap to see each animation:</p>
+            @for (name of animationNames; track name) {
+              <button
+                class="chip"
+                type="button"
+                [class.chip--on]="previewAnimation() === name"
+                (click)="previewAnimation.set(name)"
+              >
+                {{ name }}
+              </button>
+            }
+          </div>
+        </div>
+      </section>
+
+      <section class="card block">
+        <h2>Make a new one</h2>
+        @if (!hasGemini()) {
+          <p class="hint">
+            Add a Gemini API key on the <strong>Keys</strong> tab to generate a
+            character, or upload a sprite sheet you already have.
+          </p>
+        }
+
+        <label class="field">
+          <span>What is your character?</span>
+          <input
+            type="text"
+            [value]="characterPrompt()"
+            (input)="characterPrompt.set($any($event.target).value)"
+            placeholder="a fluffy orange fox cub in a red scarf"
+          />
+        </label>
+
+        <label class="field">
+          <span>Art style</span>
+          <textarea
+            [value]="stylePrompt()"
+            (input)="stylePrompt.set($any($event.target).value)"
+          ></textarea>
+        </label>
+
+        <details class="details">
+          <summary>See the full prompt that gets sent</summary>
+          <pre>{{ fullPrompt() }}</pre>
+        </details>
+
+        <div class="actions">
+          <button
+            class="btn"
+            type="button"
+            [disabled]="!hasGemini() || !!busy()"
+            (click)="generateSprites()"
+          >
+            Generate character ✨
+          </button>
+
+          <label class="btn btn--ghost upload">
+            Upload a picture
+            <input type="file" accept="image/*" (change)="onFileChosen($event)" />
+          </label>
+        </div>
+      </section>
+
+      @if (rawImage(); as raw) {
+        <section class="card block">
+          <h2>What came back</h2>
+          <img class="rawimage" [src]="raw" alt="The generated sprite sheet" />
+
+          @if (planSummary(); as summary) {
+            <p class="hint">
+              Found <strong>{{ summary.frames }}</strong> poses in a
+              {{ summary.cols }}×{{ summary.rows }} grid. Each one was trimmed,
+              centred and redrawn into a {{ summary.cell }} cell with the
+              background removed.
+            </p>
+          }
+
+          @if (previewSheet(); as preview) {
+            <div class="preview">
+              <app-sprite-character
+                [character]="preview"
+                [animation]="previewAnimation()"
+                [size]="160"
+              />
+              <div class="preview__controls">
+                <p class="hint">Check each animation before saving:</p>
+                @for (name of animationNames; track name) {
+                  <button
+                    class="chip"
+                    type="button"
+                    [class.chip--on]="previewAnimation() === name"
+                    (click)="previewAnimation.set(name)"
+                  >
+                    {{ name }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn" type="button" (click)="saveCharacter()">
+                Use this character
+              </button>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!!busy()"
+                (click)="reanalyse()"
+              >
+                Analyse again
+              </button>
+            </div>
+          }
+        </section>
+      }
+    }
+
+    @case ('sounds') {
+      <section class="card block">
+        <h2>Game sounds</h2>
+        @if (!hasElevenLabs()) {
+          <p class="hint">
+            Add an ElevenLabs API key on the <strong>Keys</strong> tab to make new
+            sounds. The built-in sounds work without one.
+          </p>
+        }
+
+        @for (id of soundIds; track id) {
+          <div class="sound">
+            <div class="sound__head">
+              <strong>{{ soundLabels[id] }}</strong>
+              <button class="chip" type="button" (click)="preview(id)">▶ Play</button>
+            </div>
+            <textarea
+              [value]="soundPromptFor(id)"
+              (input)="setSoundPrompt(id, $any($event.target).value)"
+              rows="2"
+            ></textarea>
+            <button
+              class="btn btn--ghost"
+              type="button"
+              [disabled]="!hasElevenLabs() || !!busy()"
+              (click)="generateSound(id)"
+            >
+              Generate this sound
+            </button>
+          </div>
+        }
+      </section>
+    }
+
+    @case ('music') {
+      <section class="card block">
+        <h2>Background music</h2>
+        <p class="hint">
+          Generated with Gemini's Lyria model. It records a loop in real time, so
+          a 20 second loop takes at least 20 seconds to make.
+        </p>
+        @if (!hasGemini()) {
+          <p class="hint">Add a Gemini API key on the <strong>Keys</strong> tab first.</p>
+        }
+
+        <label class="field">
+          <span>Describe the music</span>
+          <textarea
+            [value]="musicPrompt()"
+            (input)="musicPrompt.set($any($event.target).value)"
+            rows="3"
+          ></textarea>
+        </label>
+
+        <label class="field">
+          <span>Loop length: {{ musicSeconds() }} seconds</span>
+          <input
+            type="range"
+            min="8"
+            max="45"
+            step="1"
+            [value]="musicSeconds()"
+            (input)="musicSeconds.set(+$any($event.target).value)"
+          />
+        </label>
+
+        <button
+          class="btn"
+          type="button"
+          [disabled]="!hasGemini() || !!busy()"
+          (click)="generateMusic()"
+        >
+          Compose music 🎵
+        </button>
+      </section>
+    }
+
+    @case ('keys') {
+      <section class="card block">
+        <h2>API keys</h2>
+        <p class="hint">
+          Keys are stored in this browser only and are sent straight to Google and
+          ElevenLabs when you generate something. There is no server. Do not put
+          your keys in a browser you share with other people.
+        </p>
+
+        <label class="field">
+          <span>Gemini API key — for pictures and music</span>
+          <input
+            type="password"
+            autocomplete="off"
+            [value]="geminiKey()"
+            (input)="geminiKey.set($any($event.target).value)"
+            placeholder="AIza…"
+          />
+        </label>
+        <p class="hint">
+          Get one free at
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener"
+            >aistudio.google.com/apikey</a
+          >
+        </p>
+
+        <label class="field">
+          <span>ElevenLabs API key — for sound effects</span>
+          <input
+            type="password"
+            autocomplete="off"
+            [value]="elevenLabsKey()"
+            (input)="elevenLabsKey.set($any($event.target).value)"
+            placeholder="sk_…"
+          />
+        </label>
+        <p class="hint">
+          Get one at
+          <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener"
+            >elevenlabs.io</a
+          >. The free tier allows 50 sound generations a month, for personal use.
+        </p>
+
+        <button class="btn btn--ghost" type="button" (click)="clearKeys()">
+          Remove keys from this device
+        </button>
+      </section>
+    }
+  }
+
+  <section class="card block">
+    <h2>Save and share</h2>
+    <p class="hint">
+      Export everything you have made as a file. Drop that file into
+      <code>public/media/</code> and load it here on another device, or commit it
+      to the repo as the new default.
+    </p>
+    <div class="actions">
+      <button class="btn btn--ghost" type="button" (click)="exportPack()">
+        Export pack
+      </button>
+      <label class="btn btn--ghost upload">
+        Import pack
+        <input type="file" accept="application/json" (change)="importPack($event)" />
+      </label>
+      @if (isCustomised()) {
+        <button class="btn btn--ghost" type="button" (click)="resetAll()">
+          Restore built-in media
+        </button>
+      }
+    </div>
+  </section>
+
+  <p><a [href]="homeHref()" (click)="go($event, homeHref())">← Back to the games</a></p>
+</div>

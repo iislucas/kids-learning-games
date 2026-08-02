@@ -1,0 +1,68 @@
+<div class="page">
+  <section class="summary card">
+    <app-sprite-character
+      [character]="character()"
+      [animation]="collectedCount() > 0 ? 'celebrate' : 'idle'"
+      [size]="130"
+    />
+    <div>
+      <h1>My prizes</h1>
+      <p class="summary__count">
+        <strong>{{ collectedCount() }}</strong> of {{ totalPrizes() }} collected
+      </p>
+      @if (nextPrize(); as prize) {
+        <p class="hint">
+          Next up: {{ prize.emoji }} {{ prize.name }} at
+          {{ prize.starsRequired }} stars
+        </p>
+      } @else {
+        <p class="hint">Everything collected. Incredible! 🏆</p>
+      }
+    </div>
+  </section>
+
+  <ul class="stats">
+    <li><span aria-hidden="true">⭐</span><strong>{{ stars() }}</strong>stars</li>
+    <li><span aria-hidden="true">🔥</span><strong>{{ bestStreak() }}</strong>best streak</li>
+    <li><span aria-hidden="true">📅</span><strong>{{ dayStreak() }}</strong>day streak</li>
+    <li><span aria-hidden="true">🎯</span><strong>{{ accuracyPercent() }}%</strong>correct</li>
+  </ul>
+
+  @for (collection of collections(); track collection.set.id) {
+    <section class="collection">
+      <h2 class="collection__title">
+        <span aria-hidden="true">{{ collection.set.emoji }}</span>
+        {{ collection.set.name }}
+        <span class="collection__count">
+          {{ collection.owned }}/{{ collection.total }}
+        </span>
+        @if (collection.complete) {
+          <span class="collection__trophy" title="Collection complete!">
+            {{ collection.set.trophy }}
+          </span>
+        }
+      </h2>
+
+      <ul class="grid">
+        @for (prize of collection.prizes; track prize.id) {
+          <li
+            class="prize"
+            [class.prize--locked]="!prize.unlocked"
+            [attr.aria-label]="
+              prize.unlocked
+                ? prize.name + ', collected'
+                : prize.name + ', locked, needs ' + prize.starsRequired + ' stars'
+            "
+          >
+            <span class="prize__emoji" aria-hidden="true">{{ prize.emoji }}</span>
+            @if (prize.unlocked) {
+              <span class="prize__name">{{ prize.name }}</span>
+            } @else {
+              <span class="prize__name">⭐ {{ prize.starsRequired }}</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</div>

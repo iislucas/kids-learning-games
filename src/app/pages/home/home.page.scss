@@ -1,0 +1,144 @@
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.hero__character {
+  flex: 0 0 auto;
+}
+
+.hero__text {
+  min-width: 0;
+}
+
+.hero__streak {
+  margin: 0;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+@media (max-width: 420px) {
+  .hero {
+    padding: 14px;
+  }
+  .hero__character {
+    margin-left: -12px;
+  }
+}
+
+.nextprize {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+  text-decoration: none;
+  color: inherit;
+  padding: 16px;
+}
+
+.nextprize__emoji {
+  font-size: 2.4rem;
+  flex: 0 0 auto;
+}
+
+.nextprize__body {
+  display: block;
+  flex: 1;
+  min-width: 0;
+
+  strong {
+    display: block;
+  }
+}
+
+.bar {
+  display: block;
+  height: 12px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), #ff9f43);
+  transition: width 0.4s ease;
+}
+
+.section-title {
+  margin: 0 4px 10px;
+}
+
+.games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+/* Two across once there is room for it. */
+@media (min-width: 620px) {
+  .games {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.game {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-soft);
+  text-decoration: none;
+  color: inherit;
+  border-left: 8px solid var(--accent, var(--brand));
+  transition: transform 0.08s ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+.game__emoji {
+  font-size: 2.4rem;
+  flex: 0 0 auto;
+}
+
+.game__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.game__title {
+  font-size: 1.2rem;
+}
+
+.game__desc {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.game__level {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--accent, var(--brand));
+}
+
+.game__go {
+  color: var(--accent, var(--brand));
+  font-size: 1.1rem;
+}

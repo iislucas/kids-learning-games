@@ -1,0 +1,65 @@
+.block {
+  margin-bottom: 16px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  font-weight: 700;
+  cursor: pointer;
+
+  input {
+    /* Large enough to hit without aiming. */
+    width: 26px;
+    height: 26px;
+    accent-color: var(--brand);
+    flex: 0 0 auto;
+  }
+}
+
+.packstats {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: #faf8ff;
+  }
+}
+
+.packstats__name {
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+}
+
+.danger {
+  background: #ffe9ea;
+  border: 2px solid var(--bad);
+  border-radius: 16px;
+  padding: 14px;
+
+  p {
+    margin-bottom: 12px;
+  }
+}
+
+.danger__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn--danger {
+  background: var(--bad);
+  box-shadow: 0 4px 0 var(--bad-dark);
+}

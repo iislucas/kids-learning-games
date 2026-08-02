@@ -1,0 +1,89 @@
+<div class="page">
+  <h1>Settings</h1>
+
+  <section class="card block">
+    <h2>Sound</h2>
+    <label class="toggle">
+      <input type="checkbox" [checked]="soundsEnabled()" (change)="toggleSounds()" />
+      <span>Sound effects</span>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" [checked]="musicEnabled()" (change)="toggleMusic()" />
+      <span>Background music</span>
+    </label>
+  </section>
+
+  <section class="card block">
+    <h2>Pictures and sounds</h2>
+    <p class="hint">
+      The media studio can generate a new character and new sounds using your own
+      Gemini and ElevenLabs API keys. Without keys, the game uses the pictures and
+      sounds included in the app.
+    </p>
+    <p>
+      <a class="btn" [href]="mediaHref()" (click)="go($event, mediaHref())"
+        >Open media studio 🎨</a
+      >
+    </p>
+    @if (isCustomised()) {
+      <p class="hint">You are using custom media.</p>
+      <button class="btn btn--ghost" type="button" (click)="resetMedia()">
+        Restore the built-in media
+      </button>
+    }
+  </section>
+
+  <section class="card block">
+    <h2>Progress</h2>
+    <p>
+      <strong>{{ stars() }}</strong> stars from
+      <strong>{{ answered() }}</strong> questions.
+    </p>
+
+    <ul class="packstats">
+      @for (row of packStats(); track row.pack.id) {
+        <li>
+          <span aria-hidden="true">{{ row.pack.emoji }}</span>
+          <span class="packstats__name">{{ row.pack.title }}</span>
+          <span class="hint">
+            level {{ row.stats.bestLevel }} · {{ row.stats.correct }}/{{
+              row.stats.answered
+            }}
+          </span>
+        </li>
+      }
+    </ul>
+
+    @if (confirmingReset()) {
+      <div class="danger">
+        <p>
+          <strong>Erase all stars and prizes?</strong> This cannot be undone.
+        </p>
+        <div class="danger__actions">
+          <button class="btn btn--danger" type="button" (click)="resetProgress()">
+            Yes, erase everything
+          </button>
+          <button
+            class="btn btn--ghost"
+            type="button"
+            (click)="confirmingReset.set(false)"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    } @else {
+      <button
+        class="btn btn--ghost"
+        type="button"
+        (click)="confirmingReset.set(true)"
+      >
+        Reset all progress
+      </button>
+    }
+  </section>
+
+  <p>
+    <a [href]="homeHref()" (click)="go($event, homeHref())">← Back to the games</a>
+  </p>
+</div>

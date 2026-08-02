@@ -1,0 +1,293 @@
+.play {
+  position: relative;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 8px 14px 32px;
+  /* Keeps the answer buttons clear of the iOS home indicator. */
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.playbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.playbar__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 1.2rem;
+}
+
+.playbar__title {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+
+  strong {
+    display: block;
+  }
+  .hint {
+    font-size: 0.82rem;
+  }
+}
+
+.playbar__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+}
+
+.round__meter {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+}
+
+.round__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent, var(--brand));
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.round__count {
+  margin: 6px 2px 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.round__streak {
+  color: #e07b00;
+}
+
+.stage {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  /* Floats in whatever space is left between the progress bar and the answers,
+     so a tall phone does not leave the question stranded at the top. */
+  margin: auto 0;
+  padding: 10px 0;
+}
+
+.stage__character {
+  flex: 0 0 auto;
+  margin-left: -14px;
+}
+
+.bubble {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  text-align: center;
+
+  /* Little tail pointing at the character. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: -9px;
+    bottom: 26px;
+    border: 10px solid transparent;
+    border-right-color: var(--paper);
+    border-left: 0;
+  }
+}
+
+.bubble__instruction {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.bubble__prompt {
+  margin: 2px 0 0;
+  font-size: clamp(1.6rem, 8vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.bubble__prompt--good {
+  color: var(--good);
+}
+
+.bubble__prompt--bad {
+  color: var(--bad);
+}
+
+.prizewon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.prizewon__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(120deg, #fff5d6, #ffe6f2);
+  border: 2px solid var(--gold);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 700;
+  animation: pop 0.45s cubic-bezier(0.2, 1.5, 0.5, 1) both;
+}
+
+.prizewon__emoji {
+  font-size: 1.4rem;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.choices {
+  list-style: none;
+  /* Pinned to the bottom: that is where thumbs are. */
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.choice {
+  width: 100%;
+  /* Big enough to hit reliably with a small finger in a moving car. */
+  min-height: 76px;
+  padding: 12px 10px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 5px 0 var(--line);
+  font-size: clamp(1.15rem, 5vw, 1.5rem);
+  font-weight: 800;
+  color: var(--ink);
+  word-break: break-word;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease,
+    opacity 0.15s ease;
+
+  &:active:not(:disabled) {
+    transform: translateY(5px);
+    box-shadow: none;
+  }
+
+  &:disabled {
+    /* Overrides the global disabled fade; the reveal colours carry the meaning. */
+    opacity: 1;
+    cursor: default;
+  }
+}
+
+.choice--right {
+  background: var(--good);
+  color: #fff;
+  box-shadow: 0 5px 0 var(--good-dark);
+  animation: pop 0.35s cubic-bezier(0.2, 1.5, 0.5, 1) both;
+}
+
+.choice--wrong {
+  background: var(--bad);
+  color: #fff;
+  box-shadow: 0 5px 0 var(--bad-dark);
+  animation: shake 0.4s ease both;
+}
+
+.choice--dimmed {
+  opacity: 0.4;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-7px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.next {
+  margin-top: 14px;
+  width: 100%;
+}
+
+.finish {
+  margin: auto 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.finish__score {
+  font-size: 1.2rem;
+  margin-bottom: 4px;
+}
+
+.finish__note {
+  font-weight: 800;
+  color: var(--accent, var(--brand));
+  font-size: 1.1rem;
+}
+
+.finish__actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.btn--level {
+  background: var(--gold);
+  color: #5a3d00;
+  box-shadow: 0 4px 0 #d99f18;
+}
