@@ -1,5 +1,9 @@
 @if (pack(); as pack) {
   <div class="play" [style.--accent]="accentColour()">
+    <app-prize-backdrop
+      [prizes]="collectedPrizes()"
+      [highlightIds]="prizesWonThisRound()"
+    />
     <app-confetti-burst [trigger]="confettiTrigger()" />
 
     <header class="playbar">
@@ -86,22 +90,34 @@
 
           <div class="bubble" aria-live="polite">
             @if (snap.phase === 'asking') {
-              @if (snap.question.instruction) {
+              @if (snap.attempts > 0) {
+                <p class="bubble__instruction bubble__instruction--retry">
+                  Have another go!
+                </p>
+              } @else if (snap.question.instruction) {
                 <p class="bubble__instruction">{{ snap.question.instruction }}</p>
               }
               <p class="bubble__prompt">{{ snap.question.prompt }}</p>
             } @else if (lastWasCorrect()) {
-              <p class="bubble__prompt bubble__prompt--good">Yes! 🎉</p>
-              @if (starsJustWon() > 1) {
-                <p class="bubble__instruction">+{{ starsJustWon() }} stars!</p>
+              @if (wasRetry()) {
+                <p class="bubble__prompt bubble__prompt--good">That's it! 🌟</p>
+                <p class="bubble__instruction">Now you know it.</p>
               } @else {
-                <p class="bubble__instruction">+1 star</p>
+                <p class="bubble__prompt bubble__prompt--good">Yes! 🎉</p>
+                @if (starsJustWon() > 1) {
+                  <p class="bubble__instruction">+{{ starsJustWon() }} stars!</p>
+                } @else {
+                  <p class="bubble__instruction">+1 star</p>
+                }
               }
             } @else {
               <p class="bubble__prompt bubble__prompt--bad">Not quite!</p>
               @if (snap.question.explanation) {
                 <p class="bubble__instruction">{{ snap.question.explanation }}</p>
               }
+              <p class="bubble__instruction bubble__instruction--retry">
+                The green one is right — try it!
+              </p>
             }
           </div>
         </section>
@@ -137,7 +153,7 @@
 
         @if (snap.phase === 'revealing') {
           <button class="btn btn--ghost next" type="button" (click)="next()">
-            Next →
+            {{ snap.awaitingRetry ? 'Try again ↺' : 'Next →' }}
           </button>
         }
       }

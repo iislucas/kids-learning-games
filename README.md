@@ -81,13 +81,30 @@ out-of-range answers.
 
 The rules of a round live in [`quiz-session.ts`](src/app/quiz/quiz-session.ts),
 deliberately free of Angular so streaks, tap-guarding and level-up thresholds are
-directly testable.
+directly testable. Two rules there are worth knowing:
+
+- **A wrong answer does not skip ahead.** The correct choice is shown in green
+  with an explanation, then the *same question comes back* to be answered
+  properly. The point is to learn the answer, not to be marked on it. That retry
+  earns nothing and is not recorded, so a wrong answer still costs the streak and
+  the round score stays first-attempt accuracy.
+- **The same question never appears twice in a row.** Note the repeat key
+  includes the correct answer, because some rounds (English sight words) ask
+  through the options alone and share a fixed prompt.
 
 ### Prizes
 
 30 collectible stickers across 6 themed sets, unlocked at cumulative star
 thresholds and **interleaved across sets on purpose** — being partway through
 several collections pulls harder than finishing one at a time.
+
+Collected prizes are drawn faintly **behind the game itself**
+([`prize-backdrop`](src/app/components/prize-backdrop/prize-backdrop.ts)), so the
+collection is visible while playing rather than only on a separate screen. Each
+prize holds one fixed slot forever, and slots fill in golden-ratio order so the
+scatter stays balanced at any collection size instead of piling up in one
+corner. A prize won mid-round pops into place and stays brighter for the rest of
+the round.
 
 Stars pay more during a streak (1 → 2 at 3 in a row → 3 at 5 → 4 at 10). The
 curve in [`prizes.ts`](src/app/core/prizes.ts) is tuned so the first sticker

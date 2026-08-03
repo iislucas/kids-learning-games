@@ -19,14 +19,18 @@ import { findPack } from '../../quiz/pack-registry';
 import { QuizSession, QuizSnapshot } from '../../quiz/quiz-session';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 import { ConfettiBurst } from '../../components/confetti-burst/confetti-burst';
+import { PrizeBackdrop } from '../../components/prize-backdrop/prize-backdrop';
 
-/** How long the result stays on screen before the next question. */
-const REVEAL_MS = { correct: 1500, wrong: 2600 };
+/**
+ * How long the result stays on screen before moving on. A wrong answer lingers
+ * because there is an explanation to read before the question comes back.
+ */
+const REVEAL_MS = { correct: 1500, wrong: 3200 };
 
 @Component({
   selector: 'app-play-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SpriteCharacter, ConfettiBurst],
+  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop],
   templateUrl: './play.page.html',
   styleUrl: './play.page.scss',
 })
@@ -68,8 +72,17 @@ export class PlayPage {
   readonly lastWasCorrect = signal<boolean | null>(null);
   readonly starsJustWon = signal(0);
   readonly newPrizes = signal<Prize[]>([]);
+  /** True when the reveal is showing after a corrected retry, not a first go. */
+  readonly wasRetry = signal(false);
 
   readonly stars = this.progress.stars;
+  readonly collectedPrizes = this.progress.unlockedPrizes;
+
+  /**
+   * Prizes won during this round, kept for the whole round so the backdrop
+   * keeps them highlighted rather than dimming them a second later.
+   */
+  readonly prizesWonThisRound = signal<string[]>([]);
 
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -95,6 +108,7 @@ export class PlayPage {
         this.session.set(pack ? new QuizSession(pack, level) : null);
         this.revision.update((n) => n + 1);
         this.resetFeedback();
+        this.prizesWonThisRound.set([]);
       });
     });
   }
@@ -104,6 +118,7 @@ export class PlayPage {
     this.lastWasCorrect.set(null);
     this.starsJustWon.set(0);
     this.newPrizes.set([]);
+    this.wasRetry.set(false);
   }
 
   answer(index: number): void {
@@ -116,34 +131,52 @@ export class PlayPage {
     if (!result) return;
     this.revision.update((n) => n + 1);
 
-    const outcome = this.progress.recordAnswer({
-      packId: pack.id,
-      wasCorrect: result.wasCorrect,
-      streak: result.streak,
-      level: this.level(),
-    });
-
     this.lastWasCorrect.set(result.wasCorrect);
-    this.starsJustWon.set(outcome.starsAwarded);
-    this.newPrizes.set(outcome.newPrizes);
+    this.wasRetry.set(!result.isFirstAttempt);
+
+    // A retry earns nothing and is not recorded — the first attempt already
+    // told us whether she knew it, and this go is for learning the answer.
+    if (result.isFirstAttempt) {
+      const outcome = this.progress.recordAnswer({
+        packId: pack.id,
+        wasCorrect: result.wasCorrect,
+        streak: result.streak,
+        level: this.level(),
+      });
+      this.starsJustWon.set(outcome.starsAwarded);
+      this.newPrizes.set(outcome.newPrizes);
+      if (outcome.newPrizes.length > 0) {
+        this.prizesWonThisRound.update((ids) => [
+          ...ids,
+          ...outcome.newPrizes.map((prize) => prize.id),
+        ]);
+      }
+    } else {
+      this.starsJustWon.set(0);
+      this.newPrizes.set([]);
+    }
 
     if (result.wasCorrect) {
       this.animation.set('correct');
-      this.audio.play(outcome.newPrizes.length > 0 ? 'prize' : 'correct');
-      this.confettiTrigger.update((n) => n + 1);
+      this.audio.play(this.newPrizes().length > 0 ? 'prize' : 'correct');
+      // No confetti for a corrected answer — that celebration belongs to
+      // getting it right first time.
+      if (result.isFirstAttempt) this.confettiTrigger.update((n) => n + 1);
     } else {
       this.animation.set('wrong');
       this.audio.play('wrong');
     }
 
-    // A wrong answer lingers longer so there is time to read the explanation.
     this.timer = setTimeout(
       () => this.next(),
       result.wasCorrect ? REVEAL_MS.correct : REVEAL_MS.wrong,
     );
   }
 
-  /** Skips the reveal delay when she taps "next" herself. */
+  /**
+   * Leaves the reveal early when she taps the button rather than waiting.
+   * After a wrong answer this puts the same question back up.
+   */
   next(): void {
     this.clearTimer();
     const session = this.session();
@@ -167,6 +200,7 @@ export class PlayPage {
     this.session.set(new QuizSession(pack, this.level()));
     this.revision.update((n) => n + 1);
     this.resetFeedback();
+    this.prizesWonThisRound.set([]);
     this.audio.play('tap');
   }
 

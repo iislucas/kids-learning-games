@@ -49,5 +49,9 @@ the outputs in `public/media/`. Do not hand-edit files in `public/media/`.
   bottom of the screen within thumb reach.
 - Wrong answers are gentle: a soft sound, a warm "Not quite!", and an
   explanation. Never a harsh buzzer or anything that reads as failure.
+- A wrong answer shows the correct choice and then **puts the same question
+  back** so she answers it properly. Do not "fix" this into skipping ahead — the
+  retry is the teaching. It deliberately earns no star, so wrong answers still
+  cost the streak.
 - Mobile-first. Check changes at 375px wide before anything else.
 - Respect `prefers-reduced-motion`.

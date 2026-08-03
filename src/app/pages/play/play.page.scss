@@ -8,6 +8,14 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+
+  /* Everything except the backdrop sits above it. The backdrop itself is
+     z-index 0, so listing the children here keeps the emoji behind the cards
+     without needing a z-index on each one. */
+  > *:not(app-prize-backdrop) {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .playbar {
@@ -128,6 +136,11 @@
   font-size: 0.9rem;
   color: var(--ink-soft);
   font-weight: 700;
+}
+
+.bubble__instruction--retry {
+  color: var(--accent, var(--brand));
+  margin-top: 6px;
 }
 
 .bubble__prompt {
