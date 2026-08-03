@@ -1,5 +1,10 @@
 import { Rng } from '../core/rng';
-import { Question, QuestionPack } from './question.types';
+import {
+  PackSelection,
+  Question,
+  QuestionPack,
+  defaultSelection,
+} from './question.types';
 
 export const QUESTIONS_PER_ROUND = 10;
 
@@ -67,13 +72,17 @@ export class QuizSession {
   streak = 0;
   correctCount = 0;
 
+  private readonly selection: PackSelection;
+
   constructor(
     readonly pack: QuestionPack,
     readonly level: number,
     readonly totalQuestions: number = QUESTIONS_PER_ROUND,
     seed?: number,
+    selection?: PackSelection,
   ) {
     this.rng = new Rng(seed);
+    this.selection = selection ?? defaultSelection(pack);
     this.current = this.drawQuestion();
   }
 
@@ -83,9 +92,9 @@ export class QuizSession {
    * than looping forever.
    */
   private drawQuestion(): Question {
-    let question = this.pack.generate(this.level, this.rng);
+    let question = this.pack.generate(this.level, this.rng, this.selection);
     for (let i = 0; i < MAX_REDRAWS && keyOf(question) === this.lastKey; i++) {
-      question = this.pack.generate(this.level, this.rng);
+      question = this.pack.generate(this.level, this.rng, this.selection);
     }
     this.lastKey = keyOf(question);
     return question;

@@ -1,7 +1,14 @@
 import { Rng } from '../core/rng';
 import { QUESTION_PACKS, findPack } from './pack-registry';
 import { QuizSession } from './quiz-session';
-import { Question, QuestionPack } from './question.types';
+import {
+  PackSelection,
+  Question,
+  QuestionPack,
+  defaultSelection,
+  resolveSelection,
+  selected,
+} from './question.types';
 
 /** A pack whose answer is always index 0, so tests can steer outcomes. */
 const stubPack: QuestionPack = {
@@ -307,7 +314,11 @@ describe('question packs', () => {
           // Many draws per level: the generators are random, so a single
           // sample would not catch an occasional bad question.
           for (let i = 0; i < 200; i++) {
-            const question = pack.generate(level.number, rng);
+            const question = pack.generate(
+              level.number,
+              rng,
+              defaultSelection(pack),
+            );
 
             expect(question.prompt.length).toBeGreaterThan(0);
             expect(question.choices.length).toBeGreaterThanOrEqual(2);
@@ -330,7 +341,7 @@ describe('question packs', () => {
     const pack = findPack('maths')!;
     const rng = new Rng(4242);
     for (let i = 0; i < 500; i++) {
-      const question = pack.generate(3, rng);
+      const question = pack.generate(3, rng, defaultSelection(pack));
       const answer = Number(question.choices[question.correctIndex]);
       expect(Number.isFinite(answer)).toBe(true);
       expect(answer).toBeGreaterThanOrEqual(0);
@@ -341,8 +352,170 @@ describe('question packs', () => {
     const pack = findPack('french')!;
     const rng = new Rng(99);
     for (let i = 0; i < 100; i++) {
-      const question = pack.generate(4, rng);
+      const question = pack.generate(4, rng, defaultSelection(pack));
       expect(question.choices.sort()).toEqual(['la', 'le']);
     }
+  });
+});
+
+describe('pack options', () => {
+  it('gives every option a valid, non-empty default', () => {
+    for (const pack of QUESTION_PACKS) {
+      for (const option of pack.options ?? []) {
+        const values = new Set(option.choices.map((c) => c.value));
+        expect(option.defaults.length).toBeGreaterThanOrEqual(option.minSelected);
+        expect(option.minSelected).toBeGreaterThanOrEqual(1);
+        for (const value of option.defaults) {
+          expect(values.has(value), `${pack.id}/${option.id}: ${value}`).toBe(true);
+        }
+        // Options that name levels must name ones the pack actually has.
+        for (const level of option.levels ?? []) {
+          expect(pack.levels.some((l) => l.number === level)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('still generates valid questions with only one value selected', () => {
+    // The narrowest possible setting is the one most likely to empty a pool.
+    for (const pack of QUESTION_PACKS) {
+      for (const option of pack.options ?? []) {
+        for (const choice of option.choices) {
+          const selection: PackSelection = {
+            ...defaultSelection(pack),
+            [option.id]: [choice.value],
+          };
+          const rng = new Rng(31);
+          for (const level of pack.levels) {
+            for (let i = 0; i < 40; i++) {
+              const question = pack.generate(level.number, rng, selection);
+              expect(
+                question.choices.length,
+                `${pack.id}/${option.id}=${choice.value} level ${level.number}`,
+              ).toBeGreaterThanOrEqual(2);
+              expect(new Set(question.choices).size).toBe(question.choices.length);
+              expect(question.correctIndex).toBeLessThan(question.choices.length);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('restricts maths to the selected times tables', () => {
+    const pack = findPack('maths')!;
+    const rng = new Rng(7);
+    const selection: PackSelection = { ...defaultSelection(pack), tables: ['3'] };
+
+    for (let i = 0; i < 200; i++) {
+      const question = pack.generate(5, rng, selection);
+      const [a] = question.prompt.split(' ');
+      expect(a, question.prompt).toBe('3');
+      expect(Number(question.choices[question.correctIndex]) % 3).toBe(0);
+    }
+  });
+
+  it('uses every selected table over enough draws', () => {
+    const pack = findPack('maths')!;
+    const rng = new Rng(11);
+    const selection: PackSelection = {
+      ...defaultSelection(pack),
+      tables: ['2', '7'],
+    };
+    const seen = new Set<string>();
+    for (let i = 0; i < 300; i++) {
+      seen.add(pack.generate(5, rng, selection).prompt.split(' ')[0]);
+    }
+    expect([...seen].sort()).toEqual(['2', '7']);
+  });
+
+  it('keeps the mixed maths round to the selected operations', () => {
+    const pack = findPack('maths')!;
+    const rng = new Rng(3);
+    const selection: PackSelection = {
+      ...defaultSelection(pack),
+      operations: ['multiply'],
+    };
+    for (let i = 0; i < 100; i++) {
+      expect(pack.generate(4, rng, selection).prompt).toContain('×');
+    }
+  });
+
+  it('restricts the science quiz to the selected topics', () => {
+    const pack = findPack('science')!;
+    const rng = new Rng(5);
+    const selection: PackSelection = { topics: ['space'] };
+    const prompts = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      prompts.add(pack.generate(1, rng, selection).prompt);
+    }
+    // Every space prompt, and nothing from the other topics.
+    expect(prompts.has('Spider')).toBe(false);
+    expect(prompts.has('Your heart')).toBe(false);
+    expect(prompts.size).toBeGreaterThan(1);
+  });
+
+  it('restricts French vocabulary to the selected topics', () => {
+    const pack = findPack('french')!;
+    const rng = new Rng(13);
+    const selection: PackSelection = { topics: ['colours'] };
+    const colours = ['rouge', 'bleu', 'vert', 'jaune', 'noir', 'violet'];
+    for (let i = 0; i < 100; i++) {
+      expect(colours).toContain(pack.generate(1, rng, selection).prompt);
+    }
+  });
+
+  it('falls back for French le/la when only colours are selected', () => {
+    // Colours are adjectives and are excluded from that round, so the
+    // selection has to be ignored rather than leaving nothing to ask.
+    const pack = findPack('french')!;
+    const rng = new Rng(17);
+    for (let i = 0; i < 100; i++) {
+      const question = pack.generate(4, rng, { topics: ['colours'] });
+      expect(question.choices.sort()).toEqual(['la', 'le']);
+    }
+  });
+});
+
+describe('resolveSelection', () => {
+  const pack = findPack('maths')!;
+
+  it('returns the defaults when nothing is stored', () => {
+    expect(resolveSelection(pack, undefined)).toEqual(defaultSelection(pack));
+  });
+
+  it('keeps a valid stored selection', () => {
+    const stored = { tables: ['3', '4'], operations: ['add'] };
+    expect(resolveSelection(pack, stored)).toEqual(stored);
+  });
+
+  it('drops values that no longer exist', () => {
+    const resolved = resolveSelection(pack, { tables: ['3', '99'] });
+    expect(resolved['tables']).toEqual(['3']);
+  });
+
+  it('falls back to defaults when a selection is emptied', () => {
+    // Guards against a pack edit leaving an existing player unable to generate.
+    const resolved = resolveSelection(pack, { tables: [] });
+    expect(resolved['tables']).toEqual(pack.options![0].defaults);
+  });
+
+  it('fills in options added since it was saved', () => {
+    const resolved = resolveSelection(pack, { tables: ['2'] });
+    expect(resolved['operations']).toBeDefined();
+  });
+});
+
+describe('selected', () => {
+  const pack = findPack('maths')!;
+  const option = pack.options![0];
+
+  it('reads the chosen values', () => {
+    expect(selected({ tables: ['5'] }, option)).toEqual(['5']);
+  });
+
+  it('falls back to defaults when missing or empty', () => {
+    expect(selected({}, option)).toEqual(option.defaults);
+    expect(selected({ tables: [] }, option)).toEqual(option.defaults);
   });
 });

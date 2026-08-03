@@ -17,9 +17,11 @@ export enum Views {
 
 export const initPathPatterns = {
   [Views.Home]: pathPattern``,
-  // `level` lets a session be deep-linked or refreshed without losing difficulty.
+  // `level` lets a session be deep-linked or refreshed without losing
+  // difficulty; `setup=1` opens the customise panel straight from a link.
   [Views.Play]: addUrlParams(pathPattern`play/${pv('packId')}`, [
     { name: 'level' as const, default: '1' },
+    { name: 'setup' as const, default: '' },
   ]),
   [Views.Prizes]: pathPattern`prizes`,
   [Views.MediaStudio]: addUrlParams(pathPattern`media`, [

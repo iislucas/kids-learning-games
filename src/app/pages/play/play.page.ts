@@ -16,10 +16,13 @@ import { Prize } from '../../core/prizes';
 import { MediaService } from '../../media/media.service';
 import { AnimationName } from '../../media/media.types';
 import { findPack } from '../../quiz/pack-registry';
+import { QuestionPack } from '../../quiz/question.types';
+import { PackOptionsService } from '../../quiz/pack-options.service';
 import { QuizSession, QuizSnapshot } from '../../quiz/quiz-session';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 import { ConfettiBurst } from '../../components/confetti-burst/confetti-burst';
 import { PrizeBackdrop } from '../../components/prize-backdrop/prize-backdrop';
+import { GameSetup } from '../../components/game-setup/game-setup';
 
 /**
  * How long the result stays on screen before moving on. A wrong answer lingers
@@ -30,7 +33,7 @@ const REVEAL_MS = { correct: 1500, wrong: 3200 };
 @Component({
   selector: 'app-play-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop],
+  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop, GameSetup],
   templateUrl: './play.page.html',
   styleUrl: './play.page.scss',
 })
@@ -40,12 +43,16 @@ export class PlayPage {
   private readonly audio = inject(AudioService);
   private readonly progress = inject(ProgressService);
   private readonly media = inject(MediaService);
+  private readonly packOptions = inject(PackOptionsService);
 
   readonly character = this.media.character;
 
   private readonly routeSignals = this.router.signals[Views.Play];
   readonly packId = this.routeSignals.pathVars.packId;
   private readonly levelParam = this.routeSignals.urlParams.level;
+  private readonly setupParam = this.routeSignals.urlParams.setup;
+
+  readonly showSetup = computed(() => this.setupParam() === '1');
 
   readonly pack = computed(() => findPack(this.packId()));
   readonly level = computed(() => {
@@ -99,18 +106,47 @@ export class PlayPage {
   constructor() {
     inject(DestroyRef).onDestroy(() => this.clearTimer());
 
-    // Start (or restart) a round whenever the pack or level changes.
+    // Start (or restart) a round whenever the pack, the level or the chosen
+    // content changes. The selection is tracked via a string key because the
+    // object itself is rebuilt on every read, which would re-fire constantly.
     effect(() => {
       const pack = this.pack();
       const level = this.level();
-      untracked(() => {
-        this.clearTimer();
-        this.session.set(pack ? new QuizSession(pack, level) : null);
-        this.revision.update((n) => n + 1);
-        this.resetFeedback();
-        this.prizesWonThisRound.set([]);
-      });
+      this.packOptions.selectionKeyFor(pack);
+      untracked(() => this.startRound(pack, level));
     });
+  }
+
+  private startRound(pack: QuestionPack | undefined, level: number): void {
+    this.clearTimer();
+    this.session.set(
+      pack
+        ? new QuizSession(
+            pack,
+            level,
+            undefined,
+            undefined,
+            this.packOptions.selectionFor(pack),
+          )
+        : null,
+    );
+    this.revision.update((n) => n + 1);
+    this.resetFeedback();
+    this.prizesWonThisRound.set([]);
+  }
+
+  openSetup(): void {
+    this.audio.play('tap');
+    this.setupParam.set('1');
+  }
+
+  closeSetup(): void {
+    this.setupParam.set('');
+  }
+
+  /** Chosen from the setup panel; the effect above restarts the round. */
+  setLevel(level: number): void {
+    this.levelParam.set(String(level));
   }
 
   private resetFeedback(): void {
@@ -196,11 +232,7 @@ export class PlayPage {
   playAgain(): void {
     const pack = this.pack();
     if (!pack) return;
-    this.clearTimer();
-    this.session.set(new QuizSession(pack, this.level()));
-    this.revision.update((n) => n + 1);
-    this.resetFeedback();
-    this.prizesWonThisRound.set([]);
+    this.startRound(pack, this.level());
     this.audio.play('tap');
   }
 

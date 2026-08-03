@@ -49,23 +49,31 @@
   <h2 class="section-title">Games</h2>
   <ul class="games">
     @for (card of cards(); track card.pack.id) {
-      <li>
-        <a
-          class="game"
-          [href]="card.href"
-          [style.--accent]="card.pack.colour"
-          (click)="go($event, card.href, card.level)"
-        >
+      <li class="games__item" [style.--accent]="card.pack.colour">
+        <a class="game" [href]="card.href" (click)="go($event, card.href, card.level)">
           <span class="game__emoji" aria-hidden="true">{{ card.pack.emoji }}</span>
           <span class="game__body">
             <strong class="game__title">{{ card.pack.title }}</strong>
             <span class="game__desc">{{ card.pack.description }}</span>
             <span class="game__level">
-              Level {{ card.level }} · {{ card.levelName }}
+              @if (card.pack.levels.length > 1) {
+                Level {{ card.level }} · {{ card.levelName }}
+              } @else {
+                {{ card.levelName }}
+              }
+              @if (card.customised) {
+                · customised
+              }
             </span>
           </span>
-          <span class="game__go" aria-hidden="true">▶</span>
         </a>
+        <a
+          class="game__cog"
+          [href]="card.setupHref"
+          [attr.aria-label]="'Choose what to practise in ' + card.pack.title"
+          (click)="go($event, card.setupHref, card.level)"
+          >⚙️</a
+        >
       </li>
     }
   </ul>

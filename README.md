@@ -79,6 +79,39 @@ screen automatically, and the shared spec starts exercising it — 200 generated
 questions per level, checking for duplicate options, empty choices and
 out-of-range answers.
 
+### Choosing what to practise
+
+**Levels control how hard it is; options control what she practises.** Keeping
+those separate is what lets you narrow a round to whatever is being taught this
+term without also changing the difficulty.
+
+Every pack can declare `options`: named sets of content toggles, edited from the
+⚙️ on the home card or in the play screen. They are stored per device and
+changing one restarts the round.
+
+| Pack | Options |
+| --- | --- |
+| Number Fun | Which **times tables** (2–12, defaults 2/3/4/5/10); which operations appear in the mixed round |
+| Word Play | Word difficulty — short, longer, tricky |
+| Français | Word topics — animals, food, colours, school, family |
+| Wonder Quiz | Quiz topics — animals, body, space, nature |
+
+Two rules keep this from ever producing an unanswerable round:
+
+- `minSelected` stops the last chip being switched off, and
+  [`resolveSelection`](src/app/quiz/question.types.ts) reconciles a stored
+  selection against the pack's current options — dropping values that no longer
+  exist and falling back to defaults if that leaves too few. Without it, editing
+  a pack's option list would break existing players.
+- Generators fall back to a wider pool rather than drawing from an empty one.
+  The French `le/la` round is the awkward case: it excludes colours (they are
+  adjectives), so a colours-only selection has to be ignored there. There is a
+  test for exactly that, plus one that generates from *every* option value in
+  isolation.
+
+Note that Wonder Quiz has a single level: its four topics were previously
+levels, which implied space was harder than animals. They are options now.
+
 The rules of a round live in [`quiz-session.ts`](src/app/quiz/quiz-session.ts),
 deliberately free of Angular so streaks, tap-guarding and level-up thresholds are
 directly testable. Two rules there are worth knowing:

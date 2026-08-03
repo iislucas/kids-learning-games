@@ -1,5 +1,12 @@
 import { Rng } from '../../core/rng';
-import { makeChoice, Question, QuestionPack } from '../question.types';
+import {
+  PackOption,
+  PackSelection,
+  Question,
+  QuestionPack,
+  makeChoice,
+  selected,
+} from '../question.types';
 
 interface WordEntry {
   word: string;
@@ -53,6 +60,20 @@ const RHYME_GROUPS: string[][] = [
   ['cake', 'lake', 'snake', 'rake'],
 ];
 
+const WORD_SETS_OPTION: PackOption = {
+  id: 'wordSets',
+  label: 'Word difficulty',
+  hint: 'Which words appear in the letter and spelling rounds?',
+  defaults: ['1', '2'],
+  minSelected: 1,
+  levels: [1, 2],
+  choices: [
+    { value: '1', label: 'Short words', emoji: '🐱' },
+    { value: '2', label: 'Longer words', emoji: '🏠' },
+    { value: '3', label: 'Tricky words', emoji: '🦋' },
+  ],
+};
+
 export const englishPack: QuestionPack = {
   id: 'english',
   title: 'Word Play',
@@ -65,13 +86,15 @@ export const englishPack: QuestionPack = {
     { number: 3, name: 'Rhyming words' },
     { number: 4, name: 'Tricky words' },
   ],
+  options: [WORD_SETS_OPTION],
 
-  generate(level: number, rng: Rng): Question {
+  generate(level: number, rng: Rng, selection: PackSelection): Question {
+    const bands = selected(selection, WORD_SETS_OPTION).map(Number);
     switch (level) {
       case 1:
-        return missingLetter(rng, 1);
+        return missingLetter(rng, bands);
       case 2:
-        return spellWord(rng, 2);
+        return spellWord(rng, bands);
       case 3:
         return rhyme(rng);
       default:
@@ -80,12 +103,14 @@ export const englishPack: QuestionPack = {
   },
 };
 
-function wordsUpToBand(band: number): WordEntry[] {
-  return WORDS.filter((entry) => entry.band <= band);
+function wordsInBands(bands: number[]): WordEntry[] {
+  const matching = WORDS.filter((entry) => bands.includes(entry.band));
+  // Never hand back an empty pool, whatever ends up in the stored selection.
+  return matching.length > 0 ? matching : WORDS;
 }
 
-function missingLetter(rng: Rng, band: number): Question {
-  const entry = rng.pick(wordsUpToBand(band + 1));
+function missingLetter(rng: Rng, bands: number[]): Question {
+  const entry = rng.pick(wordsInBands(bands));
   const index = rng.int(0, entry.word.length - 1);
   const missing = entry.word[index];
   const masked =
@@ -105,8 +130,8 @@ function missingLetter(rng: Rng, band: number): Question {
   });
 }
 
-function spellWord(rng: Rng, band: number): Question {
-  const entry = rng.pick(wordsUpToBand(band + 1));
+function spellWord(rng: Rng, bands: number[]): Question {
+  const entry = rng.pick(wordsInBands(bands));
   return makeChoice(rng, {
     instruction: 'How do you spell it?',
     prompt: entry.emoji,

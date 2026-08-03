@@ -5,6 +5,7 @@ import { AudioService } from '../../core/audio.service';
 import { ProgressService } from '../../core/progress.service';
 import { MediaService } from '../../media/media.service';
 import { QUESTION_PACKS } from '../../quiz/pack-registry';
+import { PackOptionsService } from '../../quiz/pack-options.service';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 
 @Component({
@@ -20,6 +21,7 @@ export class HomePage {
   private readonly audio = inject(AudioService);
   private readonly progress = inject(ProgressService);
   private readonly media = inject(MediaService);
+  private readonly packOptions = inject(PackOptionsService);
 
   readonly character = this.media.character;
   readonly packs = QUESTION_PACKS;
@@ -35,12 +37,15 @@ export class HomePage {
     this.packs.map((pack) => {
       const stats = this.progress.statsFor(pack.id);
       const level = Math.min(stats.bestLevel, pack.levels.length);
+      const href = this.router.hrefForView(Views.Play, { packId: pack.id });
       return {
         pack,
         level,
         levelName: pack.levels[level - 1]?.name ?? pack.levels[0].name,
         answered: stats.answered,
-        href: this.router.hrefForView(Views.Play, { packId: pack.id }),
+        customised: this.packOptions.isCustomised(pack),
+        href,
+        setupHref: `${href}${href.includes('?') ? '&' : '?'}setup=1`,
       };
     }),
   );

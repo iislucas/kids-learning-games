@@ -90,12 +90,19 @@
   }
 }
 
+/* The cog is a sibling of the card link, not a child: nesting one <a> inside
+   another is invalid and breaks tapping the cog on mobile. */
+.games__item {
+  position: relative;
+}
+
 .game {
   display: flex;
   align-items: center;
   gap: 14px;
   height: 100%;
-  padding: 16px;
+  /* Right padding leaves room for the cog sitting over the card. */
+  padding: 16px 58px 16px 16px;
   border-radius: var(--radius-lg);
   background: var(--paper);
   box-shadow: var(--shadow-soft);
@@ -106,6 +113,26 @@
 
   &:active {
     transform: scale(0.98);
+  }
+}
+
+.game__cog {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #f6f3fd;
+  text-decoration: none;
+  font-size: 1.05rem;
+
+  &:active {
+    background: var(--line);
   }
 }
 

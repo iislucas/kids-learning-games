@@ -1,0 +1,79 @@
+<div class="sheet" role="dialog" aria-modal="true" aria-label="Choose what to practise">
+  <div class="sheet__head">
+    <h2>{{ pack().emoji }} {{ pack().title }}</h2>
+    <button class="close" type="button" (click)="close()" aria-label="Close">✕</button>
+  </div>
+
+  <div class="sheet__body">
+    @if (hasLevels()) {
+      <section class="group">
+        <h3>How hard?</h3>
+        <div class="chips">
+          @for (option of pack().levels; track option.number) {
+            <button
+              type="button"
+              class="chip"
+              [class.chip--on]="option.number === level()"
+              [attr.aria-pressed]="option.number === level()"
+              (click)="chooseLevel(option.number)"
+            >
+              {{ option.number }}. {{ option.name }}
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    @for (option of options(); track option.id) {
+      <section class="group">
+        <h3>{{ option.label }}</h3>
+        @if (option.hint) {
+          <p class="hint">{{ option.hint }}</p>
+        }
+        @if (levelNote(option); as note) {
+          <p class="hint hint--levels">{{ note }}</p>
+        }
+
+        <div class="chips">
+          @for (choice of option.choices; track choice.value) {
+            <button
+              type="button"
+              class="chip"
+              [class.chip--on]="isSelected(option, choice.value)"
+              [attr.aria-pressed]="isSelected(option, choice.value)"
+              [disabled]="isLocked(option, choice.value)"
+              [attr.title]="
+                isLocked(option, choice.value) ? 'Keep at least one' : null
+              "
+              (click)="toggle(option, choice.value)"
+            >
+              @if (choice.emoji) {
+                <span aria-hidden="true">{{ choice.emoji }}</span>
+              }
+              {{ choice.label }}
+            </button>
+          }
+        </div>
+
+        @if (countSelected(option) < option.choices.length) {
+          <button class="linkbtn" type="button" (click)="selectAll(option)">
+            Select all
+          </button>
+        }
+      </section>
+    }
+
+    @if (options().length === 0) {
+      <p class="hint">This game has nothing to customise yet.</p>
+    }
+  </div>
+
+  <div class="sheet__foot">
+    @if (isCustomised()) {
+      <button class="btn btn--ghost" type="button" (click)="reset()">
+        Reset to normal
+      </button>
+    }
+    <button class="btn" type="button" (click)="close()">Start playing</button>
+  </div>
+</div>

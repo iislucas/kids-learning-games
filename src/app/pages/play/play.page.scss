@@ -53,6 +53,24 @@
   }
 }
 
+.playbar__cog {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+  font-size: 1.1rem;
+
+  &:active {
+    transform: translateY(3px);
+    box-shadow: none;
+  }
+}
+
 .playbar__stars {
   display: inline-flex;
   align-items: center;

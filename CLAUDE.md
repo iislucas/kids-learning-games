@@ -31,6 +31,17 @@ Do not prefix commands with `PATH=...`; pnpm handles the Node version itself.
   (`sprite-grid.ts`, `prizes.ts`) rather than in components — that is where the
   tests live.
 
+## Pack options
+
+Levels = difficulty. Options = content (which times tables, which topics). Do
+not encode content choices as levels — that is what the `options` field on a
+`QuestionPack` is for.
+
+Any generator reading a selection must fall back to a wider pool rather than
+drawing from an empty one; a hand-edited store or a future option edit can
+otherwise leave a round unable to produce a question. The spec generates from
+every option value in isolation to catch this.
+
 ## Testing
 
 `ng test` runs Vitest. Prefer testing the pure layer directly. The pack spec

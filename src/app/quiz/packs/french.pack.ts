@@ -1,5 +1,12 @@
 import { Rng } from '../../core/rng';
-import { makeChoice, Question, QuestionPack } from '../question.types';
+import {
+  PackOption,
+  PackSelection,
+  Question,
+  QuestionPack,
+  makeChoice,
+  selected,
+} from '../question.types';
 
 interface FrenchWord {
   fr: string;
@@ -53,6 +60,22 @@ const NUMBERS = [
   'six', 'sept', 'huit', 'neuf', 'dix',
 ];
 
+const TOPICS_OPTION: PackOption = {
+  id: 'topics',
+  label: 'Word topics',
+  hint: 'Which kinds of French word should come up?',
+  defaults: ['animals', 'food', 'colours', 'school', 'family'],
+  minSelected: 1,
+  levels: [1, 2, 4],
+  choices: [
+    { value: 'animals', label: 'Animals', emoji: '🐱' },
+    { value: 'food', label: 'Food', emoji: '🍎' },
+    { value: 'colours', label: 'Colours', emoji: '🔴' },
+    { value: 'school', label: 'School', emoji: '📖' },
+    { value: 'family', label: 'Family & home', emoji: '🏠' },
+  ],
+};
+
 export const frenchPack: QuestionPack = {
   id: 'french',
   title: 'Français',
@@ -65,52 +88,60 @@ export const frenchPack: QuestionPack = {
     { number: 3, name: 'Numbers' },
     { number: 4, name: 'Le or la?' },
   ],
+  options: [TOPICS_OPTION],
 
-  generate(level: number, rng: Rng): Question {
+  generate(level: number, rng: Rng, selection: PackSelection): Question {
+    const topics = selected(selection, TOPICS_OPTION);
     switch (level) {
       case 1:
-        return frenchToEnglish(rng);
+        return frenchToEnglish(rng, topics);
       case 2:
-        return englishToFrench(rng);
+        return englishToFrench(rng, topics);
       case 3:
         return numbers(rng);
       default:
-        return article(rng);
+        return article(rng, topics);
     }
   },
 };
 
-function frenchToEnglish(rng: Rng): Question {
-  const word = rng.pick(WORDS);
+/**
+ * Words in the chosen topics, never empty. `needed` guards the case where a
+ * single narrow topic cannot supply enough distractors on its own.
+ */
+function wordsInTopics(topics: string[], needed = 1): FrenchWord[] {
+  const matching = WORDS.filter((word) => topics.includes(word.topic));
+  return matching.length >= needed ? matching : WORDS;
+}
+
+function frenchToEnglish(rng: Rng, topics: string[]): Question {
+  const pool = wordsInTopics(topics);
+  const word = rng.pick(pool);
+  // Distractors from the same topic, so the picture cannot give it away —
+  // falling back to the whole pool when that topic is too small.
+  const sameTopic = pool.filter((w) => w.topic === word.topic && w.en !== word.en);
+  const distractors = sameTopic.length >= 3 ? sameTopic : pool.filter((w) => w.en !== word.en);
   return makeChoice(rng, {
     instruction: 'What does this mean?',
     prompt: word.fr,
     emoji: '🇫🇷',
     correct: word.en,
-    // Distractors from the same topic, so the picture cannot give it away.
-    distractors: rng
-      .sample(
-        WORDS.filter((w) => w.topic === word.topic && w.en !== word.en),
-        3,
-      )
-      .map((w) => w.en),
+    distractors: rng.sample(distractors, 3).map((w) => w.en),
     explanation: `${word.fr} = ${word.en} ${word.emoji}`,
   });
 }
 
-function englishToFrench(rng: Rng): Question {
-  const word = rng.pick(WORDS);
+function englishToFrench(rng: Rng, topics: string[]): Question {
+  const pool = wordsInTopics(topics);
+  const word = rng.pick(pool);
+  const sameTopic = pool.filter((w) => w.topic === word.topic && w.fr !== word.fr);
+  const distractors = sameTopic.length >= 3 ? sameTopic : pool.filter((w) => w.fr !== word.fr);
   return makeChoice(rng, {
     instruction: 'How do you say this in French?',
     prompt: word.en,
     emoji: word.emoji,
     correct: word.fr,
-    distractors: rng
-      .sample(
-        WORDS.filter((w) => w.topic === word.topic && w.fr !== word.fr),
-        3,
-      )
-      .map((w) => w.fr),
+    distractors: rng.sample(distractors, 3).map((w) => w.fr),
     explanation: `${word.en} = ${word.fr}`,
   });
 }
@@ -132,9 +163,13 @@ function numbers(rng: Rng): Question {
   });
 }
 
-function article(rng: Rng): Question {
-  // Colours are adjectives, so "le/la" is meaningless for them.
-  const word = rng.pick(WORDS.filter((w) => w.topic !== 'colours'));
+function article(rng: Rng, topics: string[]): Question {
+  // Colours are adjectives, so "le/la" is meaningless for them. If colours are
+  // the only topic selected, ignore the selection here rather than having
+  // nothing to ask.
+  const nouns = WORDS.filter((w) => w.topic !== 'colours');
+  const inTopics = nouns.filter((w) => topics.includes(w.topic));
+  const word = rng.pick(inTopics.length > 0 ? inTopics : nouns);
   return makeChoice(rng, {
     instruction: 'Le or la?',
     prompt: `___ ${word.fr}`,

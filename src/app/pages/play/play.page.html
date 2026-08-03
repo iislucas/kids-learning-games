@@ -16,10 +16,33 @@
       >
       <div class="playbar__title">
         <strong>{{ pack.emoji }} {{ pack.title }}</strong>
-        <span class="hint">Level {{ level() }} · {{ levelName() }}</span>
+        <span class="hint">
+          @if (pack.levels.length > 1) {
+            Level {{ level() }} · {{ levelName() }}
+          } @else {
+            {{ levelName() }}
+          }
+        </span>
       </div>
+      <button
+        class="playbar__cog"
+        type="button"
+        (click)="openSetup()"
+        aria-label="Choose what to practise"
+      >
+        ⚙️
+      </button>
       <span class="playbar__stars"><span aria-hidden="true">⭐</span>{{ stars() }}</span>
     </header>
+
+    @if (showSetup()) {
+      <app-game-setup
+        [pack]="pack"
+        [level]="level()"
+        (levelChange)="setLevel($event)"
+        (closed)="closeSetup()"
+      />
+    }
 
     @if (snapshot(); as snap) {
       @if (snap.phase === 'finished') {
