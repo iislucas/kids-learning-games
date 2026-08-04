@@ -38,9 +38,14 @@ export interface PackOption {
   choices: PackOptionChoice[];
   /** Selected on a fresh install. */
   defaults: string[];
-  /** Refuse to go below this many, so a round can always be generated. */
-  minSelected: number;
-  /** 1-based levels this option affects; omit when it affects all of them. */
+  /**
+   * 1-based levels this option affects; omit when it affects all of them.
+   *
+   * An option may be emptied completely — "no adding at all" is a legitimate
+   * thing to want. Emptying it makes the levels listed here unavailable rather
+   * than silently falling back to everything, which is the whole point of being
+   * able to switch a category off.
+   */
   levels?: number[];
 }
 
@@ -58,6 +63,48 @@ export interface QuestionPack {
   options?: PackOption[];
   /** Generates one question for the given 1-based level. */
   generate(level: number, rng: Rng, selection: PackSelection): Question;
+  /**
+   * Extra availability rule, on top of the generic "an option this level uses
+   * is empty" check. Only needed where a level draws from a subset of an
+   * option's values — see the French `le`/`la` round, which cannot use colours.
+   */
+  levelAvailable?(level: number, selection: PackSelection): boolean;
+}
+
+/** The options that affect a given level. */
+export function optionsForLevel(
+  pack: QuestionPack,
+  level: number,
+): PackOption[] {
+  return (pack.options ?? []).filter(
+    (option) => !option.levels || option.levels.includes(level),
+  );
+}
+
+/**
+ * Whether a level can currently produce questions.
+ *
+ * A level is unavailable when any option feeding it has been emptied — that is
+ * how "no adding" is honoured, rather than quietly ignoring the choice.
+ */
+export function isLevelAvailable(
+  pack: QuestionPack,
+  level: number,
+  selection: PackSelection,
+): boolean {
+  for (const option of optionsForLevel(pack, level)) {
+    if ((selection[option.id]?.length ?? 0) === 0) return false;
+  }
+  return pack.levelAvailable?.(level, selection) ?? true;
+}
+
+export function availableLevels(
+  pack: QuestionPack,
+  selection: PackSelection,
+): Level[] {
+  return pack.levels.filter((level) =>
+    isLevelAvailable(pack, level.number, selection),
+  );
 }
 
 export function defaultSelection(pack: QuestionPack): PackSelection {
@@ -70,11 +117,11 @@ export function defaultSelection(pack: QuestionPack): PackSelection {
 
 /**
  * Cleans a stored selection against a pack's current options: drops values that
- * no longer exist, fills in options added since it was saved, and falls back to
- * the defaults for anything left below `minSelected`.
+ * no longer exist and fills in options added since it was saved.
  *
- * Without this, editing a pack's option list would leave existing players with
- * a selection that generates nothing.
+ * An option that is *present but empty* is left empty — that is a deliberate
+ * "none of this" and must survive a reload. Only an option that is *absent*
+ * (never set, or added to the pack since) picks up its defaults.
  */
 export function resolveSelection(
   pack: QuestionPack,
@@ -83,29 +130,21 @@ export function resolveSelection(
   const selection: PackSelection = {};
   for (const option of pack.options ?? []) {
     const valid = new Set(option.choices.map((choice) => choice.value));
-    const chosen = (stored?.[option.id] ?? option.defaults).filter((value) =>
-      valid.has(value),
-    );
-    selection[option.id] =
-      chosen.length >= option.minSelected ? chosen : [...option.defaults];
+    const chosen = stored?.[option.id] ?? option.defaults;
+    selection[option.id] = chosen.filter((value) => valid.has(value));
   }
   return selection;
 }
 
 /**
- * Reads one option's values. Falls back to everything available when the
- * selection is empty or missing, so a pack can never be asked to draw from an
- * empty pool.
+ * Reads one option's values. An absent option falls back to its defaults; an
+ * empty one stays empty, because emptying it is a real choice.
  */
 export function selected(
   selection: PackSelection,
   option: PackOption,
 ): string[] {
-  const values = selection[option.id];
-  if (values && values.length > 0) return values;
-  return option.defaults.length > 0
-    ? option.defaults
-    : option.choices.map((choice) => choice.value);
+  return selection[option.id] ?? option.defaults;
 }
 
 /** Builds a multiple-choice question, shuffling so the answer moves around. */

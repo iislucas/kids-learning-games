@@ -38,6 +38,18 @@ export class GameSetup {
   readonly hasLevels = computed(() => this.pack().levels.length > 1);
   readonly isCustomised = computed(() => this.packOptions.isCustomised(this.pack()));
 
+  /** Levels annotated with whether they can currently be played. */
+  readonly levelRows = computed(() =>
+    this.pack().levels.map((level) => ({
+      ...level,
+      playable: this.packOptions.isLevelPlayable(this.pack(), level.number),
+    })),
+  );
+
+  readonly nothingPlayable = computed(
+    () => this.packOptions.availableLevelsFor(this.pack()).length === 0,
+  );
+
   /** Which levels an option applies to, phrased for the panel. */
   levelNote(option: PackOption): string {
     if (!option.levels || !this.hasLevels()) return '';
@@ -53,15 +65,22 @@ export class GameSetup {
   }
 
   countSelected(option: PackOption): number {
-    return this.packOptions.selectionFor(this.pack())[option.id]?.length ?? 0;
+    return this.packOptions.countSelected(this.pack(), option);
   }
 
-  /** True when removing this value would drop below the option's minimum. */
-  isLocked(option: PackOption, value: string): boolean {
-    return (
-      this.isSelected(option, value) &&
-      this.countSelected(option) <= option.minSelected
-    );
+  /**
+   * Which levels an emptied option takes out of play, so switching a whole
+   * category off explains itself rather than just greying levels out.
+   */
+  disabledLevelNames(option: PackOption): string[] {
+    if (this.countSelected(option) > 0) return [];
+    return this.pack()
+      .levels.filter(
+        (level) =>
+          (!option.levels || option.levels.includes(level.number)) &&
+          !this.packOptions.isLevelPlayable(this.pack(), level.number),
+      )
+      .map((level) => level.name);
   }
 
   toggle(option: PackOption, value: string): void {
@@ -71,6 +90,11 @@ export class GameSetup {
 
   selectAll(option: PackOption): void {
     this.packOptions.selectAll(this.pack(), option);
+    this.audio.play('tap');
+  }
+
+  clear(option: PackOption): void {
+    this.packOptions.clear(this.pack(), option);
     this.audio.play('tap');
   }
 

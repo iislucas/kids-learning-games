@@ -131,19 +131,36 @@
   box-shadow: 0 3px 0 var(--brand-dark);
 }
 
-/* The last selected chip cannot be turned off, so it stays looking active
-   rather than looking broken. */
-.chip:disabled {
-  opacity: 1;
-  cursor: default;
+/* A level with nothing switched on for it. Shown struck through rather than
+   hidden, so it is obvious that a choice above took it out of play. */
+.chip--off {
+  opacity: 0.45;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.grouplinks {
+  display: flex;
+  gap: 16px;
+  align-items: center;
 }
 
 .linkbtn {
-  margin-top: 10px;
+  margin-top: 6px;
   font-weight: 700;
   color: var(--brand-dark);
   text-decoration: underline;
   min-height: 44px;
+}
+
+.warn {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #9a6a00;
+  background: #fff8e2;
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
 .sheet__foot {

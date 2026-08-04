@@ -96,18 +96,38 @@ changing one restarts the round.
 | Français | Word topics — animals, food, colours, school, family |
 | Wonder Quiz | Quiz topics — animals, body, space, nature |
 
-Two rules keep this from ever producing an unanswerable round:
+**Any category can be switched off completely** — "no adding at all" is a
+legitimate thing to want. Emptying one is honoured rather than ignored: the
+levels that depend on it become unavailable, shown struck through in the panel
+with a line explaining which rounds went away.
 
-- `minSelected` stops the last chip being switched off, and
-  [`resolveSelection`](src/app/quiz/question.types.ts) reconciles a stored
-  selection against the pack's current options — dropping values that no longer
-  exist and falling back to defaults if that leaves too few. Without it, editing
-  a pack's option list would break existing players.
-- Generators fall back to a wider pool rather than drawing from an empty one.
-  The French `le/la` round is the awkward case: it excludes colours (they are
-  adjectives), so a colours-only selection has to be ignored there. There is a
-  test for exactly that, plus one that generates from *every* option value in
-  isolation.
+`isLevelAvailable` in [`question.types.ts`](src/app/quiz/question.types.ts)
+decides this. The generic rule is "any option feeding this level is empty", and
+a pack can add `levelAvailable` for cases the generic rule cannot see:
+
+- **Maths Mixed sums** can be left with nothing to do even though its own option
+  is non-empty — if "Times" is the only operation chosen but every times table
+  has been switched off. Multiplying also drops out of that round automatically
+  whenever no tables are on.
+- **French le/la** needs a topic containing nouns; colours are adjectives, so a
+  colours-only selection closes that round.
+
+Around that:
+
+- If the requested level is unavailable the game falls back to the nearest one
+  that is, so a stale bookmark still plays. The URL keeps the original request,
+  so re-enabling the category returns you to it.
+- If a whole pack is switched off (Wonder Quiz has one level fed by one option,
+  so it can be) the play screen says so and offers the ⚙️ rather than failing.
+- [`resolveSelection`](src/app/quiz/question.types.ts) reconciles a stored
+  selection against the pack's current options, dropping values that no longer
+  exist. An option that is *present but empty* stays empty — that is a
+  deliberate "none of this" and must survive a reload — while an option that is
+  *absent* picks up its defaults, so adding an option to a pack later does not
+  break existing players.
+- Generators keep a fallback for an empty pool, but it is unreachable: level
+  availability gates them. Tests cover generating from every option value in
+  isolation, and from every category switched off.
 
 Note that Wonder Quiz has a single level: its four topics were previously
 levels, which implied space was harder than animals. They are options now.

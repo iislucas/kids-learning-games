@@ -65,7 +65,6 @@ const TOPICS_OPTION: PackOption = {
   label: 'Word topics',
   hint: 'Which kinds of French word should come up?',
   defaults: ['animals', 'food', 'colours', 'school', 'family'],
-  minSelected: 1,
   levels: [1, 2, 4],
   choices: [
     { value: 'animals', label: 'Animals', emoji: '🐱' },
@@ -102,6 +101,17 @@ export const frenchPack: QuestionPack = {
       default:
         return article(rng, topics);
     }
+  },
+
+  levelAvailable(level: number, selection: PackSelection): boolean {
+    // Colours are adjectives and have no le/la, so that round needs at least
+    // one topic that contains nouns.
+    if (level === 4) {
+      return selected(selection, TOPICS_OPTION).some(
+        (topic) => topic !== 'colours',
+      );
+    }
+    return true;
   },
 };
 
@@ -164,9 +174,9 @@ function numbers(rng: Rng): Question {
 }
 
 function article(rng: Rng, topics: string[]): Question {
-  // Colours are adjectives, so "le/la" is meaningless for them. If colours are
-  // the only topic selected, ignore the selection here rather than having
-  // nothing to ask.
+  // Colours are adjectives, so "le/la" is meaningless for them. `levelAvailable`
+  // keeps this round out of play when colours are the only topic chosen; the
+  // fallback below is an unreachable safety net.
   const nouns = WORDS.filter((w) => w.topic !== 'colours');
   const inTopics = nouns.filter((w) => topics.includes(w.topic));
   const word = rng.pick(inTopics.length > 0 ? inTopics : nouns);

@@ -16,7 +16,6 @@ const TABLES_OPTION: PackOption = {
   // Defaults to the set a 7-year-old is typically working through; the 6-9
   // tables are there to switch on as they come up at school.
   defaults: ['2', '3', '4', '5', '10'],
-  minSelected: 1,
   levels: [5],
   choices: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => ({
     value: String(n),
@@ -29,7 +28,6 @@ const OPERATIONS_OPTION: PackOption = {
   label: 'Mixed sums use',
   hint: 'Which kinds of sum appear in the mixed round?',
   defaults: ['add', 'subtract'],
-  minSelected: 1,
   levels: [4],
   choices: [
     { value: 'add', label: 'Adding', emoji: '➕' },
@@ -72,9 +70,8 @@ export const mathsPack: QuestionPack = {
         return addition(rng, 2, 18, 20);
       case 3:
         return subtraction(rng, 20);
-      case 4: {
-        const operations = selected(selection, OPERATIONS_OPTION);
-        switch (rng.pick(operations)) {
+      case 4:
+        switch (rng.pick(effectiveOperations(selection))) {
           case 'multiply':
             return multiplication(rng, tables);
           case 'subtract':
@@ -82,12 +79,29 @@ export const mathsPack: QuestionPack = {
           default:
             return addition(rng, 2, 20, 25);
         }
-      }
       default:
         return multiplication(rng, tables);
     }
   },
+
+  levelAvailable(level: number, selection: PackSelection): boolean {
+    // Mixed sums can be left with nothing to do even though its own option is
+    // non-empty: "Times" is the only operation chosen but every times table has
+    // been switched off.
+    if (level === 4) return effectiveOperations(selection).length > 0;
+    return true;
+  },
 };
+
+/**
+ * The operations the mixed round can actually produce. Multiplying needs at
+ * least one times table, so it drops out when they have all been turned off.
+ */
+function effectiveOperations(selection: PackSelection): string[] {
+  const operations = selected(selection, OPERATIONS_OPTION);
+  if (selected(selection, TABLES_OPTION).length > 0) return operations;
+  return operations.filter((operation) => operation !== 'multiply');
+}
 
 function addition(rng: Rng, min: number, max: number, total: number): Question {
   const a = rng.int(min, Math.max(min, total - min));
@@ -117,8 +131,8 @@ function subtraction(rng: Rng, max: number): Question {
 }
 
 function multiplication(rng: Rng, tables: number[]): Question {
-  // A selection can never legitimately be empty, but a hand-edited store could
-  // make it so; fall back rather than throwing mid-round.
+  // Unreachable safety net: a level whose tables are all off is not offered in
+  // the first place. Falling back beats throwing mid-round if that ever slips.
   const pool = tables.length > 0 ? tables : [2, 5, 10];
   const a = rng.pick(pool);
   const b = rng.int(1, 10);

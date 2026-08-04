@@ -44,7 +44,27 @@
       />
     }
 
-    @if (snapshot(); as snap) {
+    @if (nothingPlayable()) {
+      <section class="finish card">
+        <app-sprite-character [character]="character()" animation="idle" [size]="160" />
+        <h1>Nothing switched on</h1>
+        <p>
+          Everything in this game has been turned off. Choose something to
+          practise and we can start.
+        </p>
+        <div class="finish__actions">
+          <button class="btn btn--block" type="button" (click)="openSetup()">
+            Choose what to practise ⚙️
+          </button>
+          <a
+            class="btn btn--ghost btn--block"
+            [href]="homeHref()"
+            (click)="go($event, homeHref())"
+            >Choose another game</a
+          >
+        </div>
+      </section>
+    } @else if (snapshot(); as snap) {
       @if (snap.phase === 'finished') {
         <section class="finish card">
           <app-sprite-character

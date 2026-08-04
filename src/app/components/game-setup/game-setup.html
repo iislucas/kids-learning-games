@@ -9,15 +9,18 @@
       <section class="group">
         <h3>How hard?</h3>
         <div class="chips">
-          @for (option of pack().levels; track option.number) {
+          @for (row of levelRows(); track row.number) {
             <button
               type="button"
               class="chip"
-              [class.chip--on]="option.number === level()"
-              [attr.aria-pressed]="option.number === level()"
-              (click)="chooseLevel(option.number)"
+              [class.chip--on]="row.number === level() && row.playable"
+              [class.chip--off]="!row.playable"
+              [attr.aria-pressed]="row.number === level() && row.playable"
+              [disabled]="!row.playable"
+              [attr.title]="row.playable ? null : 'Nothing switched on for this one'"
+              (click)="chooseLevel(row.number)"
             >
-              {{ option.number }}. {{ option.name }}
+              {{ row.number }}. {{ row.name }}
             </button>
           }
         </div>
@@ -41,10 +44,6 @@
               class="chip"
               [class.chip--on]="isSelected(option, choice.value)"
               [attr.aria-pressed]="isSelected(option, choice.value)"
-              [disabled]="isLocked(option, choice.value)"
-              [attr.title]="
-                isLocked(option, choice.value) ? 'Keep at least one' : null
-              "
               (click)="toggle(option, choice.value)"
             >
               @if (choice.emoji) {
@@ -55,10 +54,27 @@
           }
         </div>
 
-        @if (countSelected(option) < option.choices.length) {
-          <button class="linkbtn" type="button" (click)="selectAll(option)">
-            Select all
-          </button>
+        <div class="grouplinks">
+          @if (countSelected(option) < option.choices.length) {
+            <button class="linkbtn" type="button" (click)="selectAll(option)">
+              Select all
+            </button>
+          }
+          @if (countSelected(option) > 0) {
+            <button class="linkbtn" type="button" (click)="clear(option)">
+              None
+            </button>
+          }
+        </div>
+
+        @if (disabledLevelNames(option); as disabled) {
+          @if (disabled.length > 0) {
+            <p class="warn">
+              Switched off, so
+              {{ disabled.length === 1 ? 'this round is' : 'these rounds are' }}
+              not available: {{ disabled.join(', ') }}.
+            </p>
+          }
         }
       </section>
     }
@@ -74,6 +90,8 @@
         Reset to normal
       </button>
     }
-    <button class="btn" type="button" (click)="close()">Start playing</button>
+    <button class="btn" type="button" [disabled]="nothingPlayable()" (click)="close()">
+      {{ nothingPlayable() ? 'Nothing switched on' : 'Start playing' }}
+    </button>
   </div>
 </div>
