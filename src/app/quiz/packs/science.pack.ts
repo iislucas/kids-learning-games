@@ -56,7 +56,6 @@ const TOPICS_OPTION: PackOption = {
   label: 'Quiz topics',
   hint: 'What should the questions be about?',
   defaults: ['animals', 'body', 'space', 'nature'],
-  minSelected: 1,
   choices: [
     { value: 'animals', label: 'Animals', emoji: '🐬' },
     { value: 'body', label: 'Your body', emoji: '❤️' },

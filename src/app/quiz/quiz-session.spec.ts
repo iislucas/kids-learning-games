@@ -5,7 +5,9 @@ import {
   PackSelection,
   Question,
   QuestionPack,
+  availableLevels,
   defaultSelection,
+  isLevelAvailable,
   resolveSelection,
   selected,
 } from './question.types';
@@ -363,8 +365,7 @@ describe('pack options', () => {
     for (const pack of QUESTION_PACKS) {
       for (const option of pack.options ?? []) {
         const values = new Set(option.choices.map((c) => c.value));
-        expect(option.defaults.length).toBeGreaterThanOrEqual(option.minSelected);
-        expect(option.minSelected).toBeGreaterThanOrEqual(1);
+        expect(option.defaults.length).toBeGreaterThan(0);
         for (const value of option.defaults) {
           expect(values.has(value), `${pack.id}/${option.id}: ${value}`).toBe(true);
         }
@@ -372,6 +373,18 @@ describe('pack options', () => {
         for (const level of option.levels ?? []) {
           expect(pack.levels.some((l) => l.number === level)).toBe(true);
         }
+      }
+    }
+  });
+
+  it('every level is available on the default selection', () => {
+    for (const pack of QUESTION_PACKS) {
+      const selection = defaultSelection(pack);
+      for (const level of pack.levels) {
+        expect(
+          isLevelAvailable(pack, level.number, selection),
+          `${pack.id} level ${level.number}`,
+        ).toBe(true);
       }
     }
   });
@@ -494,10 +507,10 @@ describe('resolveSelection', () => {
     expect(resolved['tables']).toEqual(['3']);
   });
 
-  it('falls back to defaults when a selection is emptied', () => {
-    // Guards against a pack edit leaving an existing player unable to generate.
+  it('preserves an option that was deliberately emptied', () => {
+    // "None of this category" is a real choice and has to survive a reload.
     const resolved = resolveSelection(pack, { tables: [] });
-    expect(resolved['tables']).toEqual(pack.options![0].defaults);
+    expect(resolved['tables']).toEqual([]);
   });
 
   it('fills in options added since it was saved', () => {
@@ -514,8 +527,77 @@ describe('selected', () => {
     expect(selected({ tables: ['5'] }, option)).toEqual(['5']);
   });
 
-  it('falls back to defaults when missing or empty', () => {
+  it('falls back to defaults only when the option is absent', () => {
     expect(selected({}, option)).toEqual(option.defaults);
-    expect(selected({ tables: [] }, option)).toEqual(option.defaults);
+    // An empty option stays empty — that is "none of this", not "unset".
+    expect(selected({ tables: [] }, option)).toEqual([]);
+  });
+});
+
+describe('switching a whole category off', () => {
+  it('takes the levels that depend on it out of play', () => {
+    const pack = findPack('maths')!;
+    const selection: PackSelection = { ...defaultSelection(pack), tables: [] };
+
+    // Times tables is gone; adding and taking away are untouched.
+    expect(isLevelAvailable(pack, 5, selection)).toBe(false);
+    expect(isLevelAvailable(pack, 1, selection)).toBe(true);
+    expect(isLevelAvailable(pack, 3, selection)).toBe(true);
+    expect(availableLevels(pack, selection).map((l) => l.number)).toEqual([
+      1, 2, 3, 4,
+    ]);
+  });
+
+  it('drops multiplying from the mixed round when no tables are on', () => {
+    const pack = findPack('maths')!;
+    const selection: PackSelection = {
+      tables: [],
+      operations: ['add', 'subtract', 'multiply'],
+    };
+    const rng = new Rng(21);
+    for (let i = 0; i < 200; i++) {
+      expect(pack.generate(4, rng, selection).prompt).not.toContain('×');
+    }
+    expect(isLevelAvailable(pack, 4, selection)).toBe(true);
+  });
+
+  it('closes the mixed round when its only operation is impossible', () => {
+    // Multiplying is the only thing chosen, but every table is switched off.
+    const pack = findPack('maths')!;
+    const selection: PackSelection = { tables: [], operations: ['multiply'] };
+    expect(isLevelAvailable(pack, 4, selection)).toBe(false);
+  });
+
+  it('lets maths drop addition entirely', () => {
+    const pack = findPack('maths')!;
+    const selection: PackSelection = {
+      ...defaultSelection(pack),
+      operations: ['subtract', 'multiply'],
+    };
+    const rng = new Rng(33);
+    for (let i = 0; i < 200; i++) {
+      expect(pack.generate(4, rng, selection).prompt).not.toContain('+');
+    }
+  });
+
+  it('closes the French le/la round when only colours are chosen', () => {
+    // Colours are adjectives, so that round genuinely cannot be built.
+    const pack = findPack('french')!;
+    expect(isLevelAvailable(pack, 4, { topics: ['colours'] })).toBe(false);
+    expect(isLevelAvailable(pack, 1, { topics: ['colours'] })).toBe(true);
+    // Numbers do not use topics at all, so they stay open.
+    expect(isLevelAvailable(pack, 3, { topics: [] })).toBe(true);
+  });
+
+  it('can leave a pack with nothing playable at all', () => {
+    // Science has one level fed by one option, so emptying it empties the game.
+    const pack = findPack('science')!;
+    expect(availableLevels(pack, { topics: [] })).toEqual([]);
+  });
+
+  it('keeps English rounds that do not use word sets', () => {
+    const pack = findPack('english')!;
+    const numbers = availableLevels(pack, { wordSets: [] }).map((l) => l.number);
+    expect(numbers).toEqual([3, 4]);
   });
 });

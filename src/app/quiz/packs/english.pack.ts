@@ -65,7 +65,6 @@ const WORD_SETS_OPTION: PackOption = {
   label: 'Word difficulty',
   hint: 'Which words appear in the letter and spelling rounds?',
   defaults: ['1', '2'],
-  minSelected: 1,
   levels: [1, 2],
   choices: [
     { value: '1', label: 'Short words', emoji: '🐱' },
@@ -105,7 +104,8 @@ export const englishPack: QuestionPack = {
 
 function wordsInBands(bands: number[]): WordEntry[] {
   const matching = WORDS.filter((entry) => bands.includes(entry.band));
-  // Never hand back an empty pool, whatever ends up in the stored selection.
+  // Unreachable safety net: with every band switched off these levels are not
+  // offered at all. Falling back beats throwing mid-round if that ever slips.
   return matching.length > 0 ? matching : WORDS;
 }
 

@@ -55,11 +55,30 @@ export class PlayPage {
   readonly showSetup = computed(() => this.setupParam() === '1');
 
   readonly pack = computed(() => findPack(this.packId()));
-  readonly level = computed(() => {
+
+  /** The level asked for in the URL, clamped to the pack's range. */
+  private readonly requestedLevel = computed(() => {
     const pack = this.pack();
     const parsed = Number.parseInt(this.levelParam(), 10);
     const requested = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     return pack ? Math.min(requested, pack.levels.length) : 1;
+  });
+
+  /**
+   * The level actually played. A category can be switched off entirely, which
+   * takes the levels that depend on it out of play — so the requested level may
+   * not be available, and we fall back to the nearest one that is.
+   */
+  readonly level = computed(() => {
+    const pack = this.pack();
+    if (!pack) return 1;
+    return this.packOptions.resolveLevel(pack, this.requestedLevel()) ?? 1;
+  });
+
+  /** True when every level has been switched off for this pack. */
+  readonly nothingPlayable = computed(() => {
+    const pack = this.pack();
+    return !!pack && this.packOptions.availableLevelsFor(pack).length === 0;
   });
   readonly levelName = computed(
     () => this.pack()?.levels[this.level() - 1]?.name ?? '',
@@ -98,9 +117,12 @@ export class PlayPage {
 
   readonly accentColour = computed(() => this.pack()?.colour ?? 'var(--brand)');
 
+  /** Only offer the next level up if it is actually switched on. */
   readonly canLevelUp = computed(() => {
     const pack = this.pack();
-    return !!pack && this.level() < pack.levels.length;
+    if (!pack) return false;
+    const next = this.level() + 1;
+    return next <= pack.levels.length && this.packOptions.isLevelPlayable(pack, next);
   });
 
   constructor() {
@@ -112,8 +134,9 @@ export class PlayPage {
     effect(() => {
       const pack = this.pack();
       const level = this.level();
+      const playable = !this.nothingPlayable();
       this.packOptions.selectionKeyFor(pack);
-      untracked(() => this.startRound(pack, level));
+      untracked(() => this.startRound(playable ? pack : undefined, level));
     });
   }
 
