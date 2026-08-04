@@ -406,4 +406,65 @@ describe('RoutingService', () => {
       (service as any).hrefForView(Views.SchoolMembers);
     }).toThrowError(/Missing path variable schoolId/);
   });
+
+  // ── Served from a subpath (e.g. a GitHub Pages project site) ──
+
+  describe('under a base href', () => {
+    const base = '/kids-learning-games/';
+    let baseEl: HTMLBaseElement;
+
+    beforeEach(() => {
+      baseEl = document.createElement('base');
+      baseEl.setAttribute('href', base);
+      document.head.appendChild(baseEl);
+      // The app is loaded at its base, not at the domain root.
+      window.history.replaceState(null, '', base);
+    });
+
+    afterEach(() => {
+      baseEl.remove();
+      window.history.replaceState(null, '', '/');
+    });
+
+    it('should match a route under the base path', async () => {
+      window.history.replaceState(null, '', `${base}school/S42/members`);
+      await configureTestBed(testConfig);
+
+      expect(service.matchedPatternId()).toBe(Views.SchoolMembers);
+      expect(service.signals[Views.SchoolMembers].pathVars['schoolId']()).toBe('S42');
+    });
+
+    it('should keep the base path when navigating', async () => {
+      await configureTestBed(testConfig);
+
+      service.navigateTo('/members', { clearUrlParams: true });
+      await fixture.whenStable();
+
+      expect(currentUrl()).toBe(`${base}members`);
+      expect(service.matchedPatternId()).toBe(Views.ManageMembers);
+    });
+
+    it('should keep the base path when a signal writes back to the URL', async () => {
+      await configureTestBed(testConfig);
+
+      service.matchedPatternId.set(Views.ManageMembers);
+      service.signals[Views.ManageMembers].urlParams['q'].set('foxes');
+      await fixture.whenStable();
+
+      expect(currentUrl()).toBe(`${base}members?q=foxes`);
+    });
+
+    it('hrefs should include the base path, and navigateTo should accept them', async () => {
+      await configureTestBed(testConfig);
+
+      const href = service.hrefForView(Views.SchoolMembers, { schoolId: 'S1' });
+      expect(href).toBe(`${base}school/S1/members`);
+
+      // Templates hand the same string to [href] and to the click handler, so
+      // navigating with an already-based href must not double up the base.
+      service.navigateTo(href, { clearUrlParams: true });
+      await fixture.whenStable();
+      expect(currentUrl()).toBe(`${base}school/S1/members`);
+    });
+  });
 });

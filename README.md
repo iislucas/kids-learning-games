@@ -230,16 +230,38 @@ through the same pipeline.
 
 ## Deploying
 
-`pnpm build` produces a static bundle in `dist/kids-learning-games/browser`.
-Asset paths resolve against `document.baseURI`, so it works at a domain root or
-under a subpath (e.g. GitHub Pages) provided `<base href>` is set:
+The game is live at
+<https://iislucas.github.io/kids-learning-games/>. There is no
+backend: `pnpm build` produces a static bundle in
+`dist/kids-learning-games/browser`, and that is the whole site. API keys for the
+media studio are typed in by whoever is using it and stay in that device's
+`localStorage`, so nothing secret is ever in the build.
+
+Every push to `main` runs
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): tests, then
+`pnpm run build:pages`, then a Pages deploy. To reproduce that build locally:
 
 ```bash
-pnpm build --base-href /kids-learning-games/
+pnpm run build:pages
 ```
 
-Because the router uses the History API, the host must serve `index.html` for
-unknown paths.
+That is `ng build --base-href /kids-learning-games/` plus
+[`scripts/prepare-pages.mts`](scripts/prepare-pages.mts), which adds the two
+things GitHub Pages needs:
+
+- **`404.html`** — a copy of `index.html`. The router uses the History API, so
+  a deep link like `/play/maths`, or a reload on one, has no file behind it;
+  Pages serves `404.html` for those, which boots the app and lets the router
+  read the URL as usual.
+- **`.nojekyll`** — stops Pages putting the output through Jekyll, which drops
+  files whose names start with an underscore.
+
+Serving from a subpath rather than a domain root is handled in two places, both
+keyed off `<base href>`: asset URLs resolve against `document.baseURI`
+([`assetUrl`](src/app/media/default-pack.ts)), and the router strips the base
+before matching a route and adds it back when it writes to the History API or
+builds an href. Nothing else in the app knows what path it is served under, so
+a different host or a custom domain only needs a different `--base-href`.
 
 ---
 
