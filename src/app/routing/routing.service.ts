@@ -86,8 +86,11 @@ import {
   effect,
 } from '@angular/core';
 import {
+  documentBasePath,
   matchUrl,
+  stripBasePath,
   updateSignalsFromSubsts,
+  withBasePath,
   PathPatterns,
   PatternSignals,
   UrlParamNames,
@@ -113,6 +116,13 @@ export type RoutingConfig<P extends PathPatterns> = {
 export class RoutingService<T extends PathPatterns> {
   private currentPath: WritableSignal<string>;
   private currentQuery: WritableSignal<string>;
+  /**
+   * The path the app is served under, taken from `<base href>`: `/` at a domain
+   * root, `/kids-learning-games/` on a GitHub Pages project site. Routes are
+   * matched and stored base-free; this is added back only when writing to the
+   * History API or handing an href to the DOM.
+   */
+  private readonly basePath: string = documentBasePath();
   public matchedPatternId: WritableSignal<keyof T | null> = signal(null);
   public signals: {
     [pathId in keyof T]: PatternSignals<
@@ -173,8 +183,7 @@ export class RoutingService<T extends PathPatterns> {
       }
       const path = this.constructPath();
       const query = this.constructQuery();
-      const pathWithSlash = path.startsWith('/') ? path : `/${path}`;
-      const newUrl = `${pathWithSlash}${query}`;
+      const newUrl = `${this.withBase(path)}${query}`;
       if (this.currentUrlPart() !== newUrl) {
         window.history.replaceState(null, '', newUrl);
       }
@@ -184,6 +193,16 @@ export class RoutingService<T extends PathPatterns> {
   /** The current path + query as an absolute URL string, e.g. `/members?q=x`. */
   private currentUrlPart(): string {
     return `${window.location.pathname}${window.location.search}`;
+  }
+
+  /** A route without the base path, ready for matchUrl. */
+  private stripBase(pathAndParams: string): string {
+    return stripBasePath(pathAndParams, this.basePath);
+  }
+
+  /** A route as an absolute URL path, including the base the app is served at. */
+  private withBase(pathAndParams: string): string {
+    return withBasePath(pathAndParams, this.basePath);
   }
 
   private constructPath(): string {
@@ -233,10 +252,7 @@ export class RoutingService<T extends PathPatterns> {
   private previousPatternId: keyof T | null = null;
 
   private handleUrlChange() {
-    let path = window.location.pathname;
-    if (path.startsWith('/')) {
-      path = path.substring(1);
-    }
+    const path = this.stripBase(window.location.pathname);
     // matchUrl expects the query string appended to the path (it splits on '?').
     const urlPart = `${path}${window.location.search}`;
     const match = matchUrl(urlPart, this.config.validPathPatterns);
@@ -265,7 +281,7 @@ export class RoutingService<T extends PathPatterns> {
   navigateTo(pathAndParams: string, options?: { clearUrlParams?: boolean }) {
     const clearUrlParams = options?.clearUrlParams ?? false;
     const resolved = clearUrlParams ? pathAndParams : this.resolveUrlWithParams(pathAndParams);
-    const url = resolved.startsWith('/') ? resolved : `/${resolved}`;
+    const url = this.withBase(resolved);
     // pushState creates a new history entry but does not emit a popstate event,
     // so we manually re-derive the signal state from the new URL.
     window.history.pushState(null, '', url);
@@ -300,9 +316,8 @@ export class RoutingService<T extends PathPatterns> {
       parsed.forEach((v, k) => existingParams.set(k, v));
     }
 
-    // Strip leading slash for matchUrl, which expects a path without it.
-    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-    const match = matchUrl(cleanPath, this.config.validPathPatterns);
+    // matchUrl expects a base-free path with no leading slash.
+    const match = matchUrl(this.stripBase(path), this.config.validPathPatterns);
     if (!match) return pathAndParams;
 
     // Carry forward current signal values for the matched pattern's URL params.
@@ -328,10 +343,13 @@ export class RoutingService<T extends PathPatterns> {
    * current URL param signal values for the target route pattern.
    *
    * Usage in templates: `<a [href]="routingService.hrefWithParams('/members')">`
+   *
+   * The href includes the base path, so it works when the app is served from a
+   * subpath. navigateTo() accepts hrefs in that form too, which is what lets a
+   * template pass the same string to both `[href]` and its click handler.
    */
-  hrefWithParams(basePath: string): string {
-    const resolved = this.resolveUrlWithParams(basePath);
-    return resolved.startsWith('/') ? resolved : `/${resolved}`;
+  hrefWithParams(path: string): string {
+    return this.withBase(this.resolveUrlWithParams(path));
   }
 
   /**

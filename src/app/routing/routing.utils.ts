@@ -299,6 +299,47 @@ export function matchUrlPartsToPathParts(
   return params;
 }
 
+// ── Base href ────────────────────────────────────────────────────────────────
+//
+// The app may be served from a subpath (a GitHub Pages project site lives at
+// /kids-learning-games/), so the browser's pathname is not the same thing as
+// the route the app matches on. These helpers translate between the two: routes
+// are always base-free inside the app, and the base is only added back when we
+// touch the History API or emit an href.
+
+/** Normalizes a base path so it always starts and ends with a slash. */
+export function normalizeBasePath(path: string): string {
+  const withStart = path.startsWith('/') ? path : `/${path}`;
+  return withStart.endsWith('/') ? withStart : `${withStart}/`;
+}
+
+/** The path the document is served under, from `<base href>`. */
+export function documentBasePath(): string {
+  return normalizeBasePath(new URL(document.baseURI).pathname);
+}
+
+/**
+ * Removes the base path and any leading slash, so the result is a route the
+ * pathPatterns can match: `/kids-learning-games/play/maths` -> `play/maths`.
+ * A path that does not carry the base is left alone (bar its leading slash),
+ * which makes this safe to apply to already-stripped paths.
+ */
+export function stripBasePath(pathAndParams: string, basePath: string): string {
+  if (pathAndParams.startsWith(basePath)) {
+    return pathAndParams.substring(basePath.length);
+  }
+  // The base itself, written without its trailing slash.
+  if (pathAndParams === basePath.slice(0, -1)) {
+    return '';
+  }
+  return pathAndParams.startsWith('/') ? pathAndParams.substring(1) : pathAndParams;
+}
+
+/** The inverse of stripBasePath: an absolute URL path the browser can use. */
+export function withBasePath(pathAndParams: string, basePath: string): string {
+  return `${basePath}${stripBasePath(pathAndParams, basePath)}`;
+}
+
 export function mergeSubsts(
   mergedSubsts: { [key: string]: string },
   substs: { [key: string]: string }
