@@ -52,9 +52,40 @@ export const DEFAULT_STYLE =
   'gradients and painted light, delicate line work, rounded friendly shapes, ' +
   'warm and cheerful, no harsh flat vector fills, no text';
 
+/** The grid the pose sheet is asked for, and read back as. */
+export const SHEET_COLS = 4;
+export const SHEET_ROWS = 2;
+
+/**
+ * Why an analysed sheet does not match the one that was asked for, or null when
+ * it does.
+ *
+ * Poses that touch are the usual cause, and they merge in whichever direction
+ * they touch — so naming the direction turns "it went wrong" into something
+ * fixable by rewording the prompt or nudging the art apart.
+ */
+export function describeGridMismatch(cols: number, rows: number): string | null {
+  if (cols === SHEET_COLS && rows === SHEET_ROWS) return null;
+
+  const asked = `${SHEET_COLS}×${SHEET_ROWS}`;
+  const got = `${cols}×${rows}`;
+  const why =
+    rows < SHEET_ROWS
+      ? 'The rows have run together — there is no clear empty band between them.'
+      : cols < SHEET_COLS
+        ? 'The columns have run together — the poses are touching sideways.'
+        : 'There is more separating the poses than expected — a border or stray marks, perhaps.';
+
+  return (
+    `This came back as a ${got} grid, not the ${asked} that was asked for. ${why} ` +
+    'Using it would map every animation onto the wrong drawings, so generate it ' +
+    'again, or ask for wider gaps between the poses.'
+  );
+}
+
 export function buildSpriteSheetPrompt(options: SpritePromptOptions): string {
-  const cols = options.cols ?? 4;
-  const rows = options.rows ?? 2;
+  const cols = options.cols ?? SHEET_COLS;
+  const rows = options.rows ?? SHEET_ROWS;
   const count = cols * rows;
   const poses = POSE_PLAN.slice(0, count);
 
@@ -154,4 +185,63 @@ export function buildPropPrompt(subject: string, style?: string): string {
     '- High contrast between the object and the background.',
     '- No text, no labels, no watermark, no border, no frame.',
   ].join('\n');
+}
+
+/** The walk sheet's grid: one column per frame, one row per direction. */
+export const WALK_COLS = 4;
+export const WALK_ROWS = 8;
+
+/** Row order, and it must match `DIRECTIONS` in `explore/explorer.ts`. */
+export const WALK_DIRECTIONS = [
+  { id: 's', facing: 'towards the viewer' },
+  { id: 'sw', facing: 'towards the viewer and to their left' },
+  { id: 'w', facing: 'to their left in profile' },
+  { id: 'nw', facing: 'away from the viewer and to their left' },
+  { id: 'n', facing: 'directly away from the viewer, showing their back' },
+  { id: 'ne', facing: 'away from the viewer and to their right' },
+  { id: 'e', facing: 'to their right in profile' },
+  { id: 'se', facing: 'towards the viewer and to their right' },
+];
+
+/**
+ * Prompt for the eight-direction walk cycle.
+ *
+ * The row order is not decoration: the map indexes straight into it, so a sheet
+ * whose rows come back in a different order sends the character walking
+ * sideways. `describeWalkGridMismatch` catches the case where the grid itself
+ * is wrong; nothing can catch rows in the wrong order, which is why the order
+ * is spelled out one row at a time rather than left to "the eight directions".
+ */
+export function buildWalkSheetPrompt(options: SpritePromptOptions): string {
+  return [
+    `A walk-cycle sprite sheet: exactly ${WALK_COLS * WALK_ROWS} drawings of the SAME character in a strict ${WALK_COLS}-column by ${WALK_ROWS}-row grid.`,
+    '',
+    `CHARACTER (identical in every cell): ${options.character}.`,
+    `STYLE: ${options.style?.trim() || DEFAULT_STYLE}.`,
+    '',
+    `Each ROW is one walking direction, and each row shows ${WALK_COLS} frames of that walk in order: feet together, left foot forward, feet together, right foot forward.`,
+    '',
+    'THE ROWS, top to bottom, in this exact order:',
+    ...WALK_DIRECTIONS.map(
+      (row, index) => `${index + 1}. Walking ${row.facing}.`,
+    ),
+    '',
+    'CRITICAL LAYOUT RULES:',
+    '- Plain, completely flat, uniform pure white background everywhere. No gradient, no shadow, no ground line, no border, no grid lines.',
+    '- A wide empty gap between every row and every column. No drawing may touch another.',
+    '- The character is the SAME size in every cell, with feet at the same height in every cell.',
+    '- Nothing detached floating beside the character — no sparkles, no motion lines, no dust.',
+    '- Absolutely no text, no numbers, no labels, no watermark.',
+  ].join('\n');
+}
+
+/** As `describeGridMismatch`, for the walk sheet's larger grid. */
+export function describeWalkGridMismatch(cols: number, rows: number): string | null {
+  if (cols === WALK_COLS && rows === WALK_ROWS) return null;
+  return (
+    `This came back as a ${cols}×${rows} grid, not the ${WALK_COLS}×${WALK_ROWS} that was asked for. ` +
+    'Each row has to be one direction and each column one frame, so using it ' +
+    'would send the character walking the wrong way. Generate it again, asking ' +
+    'for wider gaps between the drawings.'
+  );
 }

@@ -27,8 +27,14 @@ import {
   normaliseSheet,
 } from '../../media/sprite-sheet';
 import {
+  WALK_COLS,
+  WALK_DIRECTIONS,
+  WALK_ROWS,
   animationsFromPosePlan,
   buildPropPrompt,
+  buildWalkSheetPrompt,
+  describeGridMismatch,
+  describeWalkGridMismatch,
   buildSingleImagePrompt,
   buildSpriteSheetPrompt,
   buildTilePrompt,
@@ -117,6 +123,36 @@ export class MediaStudioPage {
   );
   readonly stylePrompt = signal(DEFAULT_STYLE);
   readonly rawImage = signal<string | null>(null);
+  /**
+   * Set when the analysed grid is not the grid that was asked for.
+   *
+   * Getting this wrong is silent and ruinous: a sheet read as 4×1 instead of
+   * 4×2 still animates, but every frame index points at the wrong drawing, so
+   * "celebrate" plays an idle pose. Saying so is far better than a preview that
+   * looks plausible and is not.
+   */
+  readonly sheetProblem = signal<string | null>(null);
+
+  // ── Walk sheet ─────────────────────────────────────────────────────────────
+
+  /**
+   * The eight-direction walk cycle the map uses.
+   *
+   * Separate from the pose sheet because it is a different grid and a different
+   * question — and because a character saved without one still works: the map
+   * falls back to the idle pose. It just does not turn.
+   */
+  readonly walkRawImage = signal<string | null>(null);
+  readonly walkPreview = signal<CharacterDef | null>(null);
+  readonly walkProblem = signal<string | null>(null);
+  readonly hasWalkSheet = computed(() => !!this.character().walk);
+
+  readonly walkPrompt = computed(() =>
+    buildWalkSheetPrompt({
+      character: this.characterPrompt(),
+      style: this.stylePrompt(),
+    }),
+  );
   readonly previewSheet = signal<CharacterDef | null>(null);
   readonly plan = signal<GridPlan | null>(null);
   readonly previewAnimation = signal<AnimationName>('idle');
@@ -241,6 +277,9 @@ export class MediaStudioPage {
 
   async generateSprites(): Promise<void> {
     await this.run('Drawing your character…', async () => {
+      // No aspect ratio: a 4-by-2 sheet wants 2:1, which the API does not
+      // offer, and its default of 1408×768 is about 1.83:1 — near enough that
+      // the cells stay close to square.
       const image = await this.gemini.generateImage(this.fullPrompt());
       this.rawImage.set(image.dataUrl);
       await this.analyseCurrentImage();
@@ -280,6 +319,9 @@ export class MediaStudioPage {
     const frameMap = animationsFromPosePlan(normalised.sheet.frameCount);
 
     this.plan.set(normalised.plan);
+    this.sheetProblem.set(
+      describeGridMismatch(normalised.plan.cols, normalised.plan.rows),
+    );
     this.previewSheet.set({
       id: 'custom',
       name: 'Momo',
@@ -291,17 +333,79 @@ export class MediaStudioPage {
         celebrate: { frames: frameMap.celebrate, fps: 5, loop: true },
       },
     });
-    this.notice.set(
-      `Found ${normalised.sheet.frameCount} poses in a ${normalised.plan.cols}×${normalised.plan.rows} grid.`,
+    const found = `Found ${normalised.sheet.frameCount} poses in a ${normalised.plan.cols}×${normalised.plan.rows} grid.`;
+    if (this.sheetProblem()) this.notice.set(null);
+    else this.notice.set(found);
+  }
+
+  async generateWalkSheet(): Promise<void> {
+    await this.run('Drawing the walk cycle…', async () => {
+      // 4 columns by 8 rows is 1:2, which the API does not offer; 9:16 is the
+      // nearest it does and keeps the cells close to square.
+      const image = await this.gemini.generateImage(this.walkPrompt(), {
+        aspectRatio: '9:16',
+      });
+      this.walkRawImage.set(image.dataUrl);
+      await this.analyseWalkSheet();
+    });
+  }
+
+  async reanalyseWalk(): Promise<void> {
+    if (!this.walkRawImage()) return;
+    await this.run('Finding the walk frames…', () => this.analyseWalkSheet());
+  }
+
+  private async analyseWalkSheet(): Promise<void> {
+    const source = this.walkRawImage();
+    if (!source) return;
+
+    const image = await loadImage(source);
+    const normalised = normaliseSheet(imageToImageData(image));
+    this.walkProblem.set(
+      describeWalkGridMismatch(normalised.plan.cols, normalised.plan.rows),
     );
+
+    const current = this.character();
+    this.walkPreview.set({
+      ...current,
+      walk: {
+        sheet: normalised.sheet,
+        directions: WALK_DIRECTIONS.map((row) => row.id),
+        fps: 8,
+      },
+    });
+    if (!this.walkProblem()) {
+      this.notice.set(
+        `Found ${normalised.sheet.frameCount} walk frames in a ${normalised.plan.cols}×${normalised.plan.rows} grid.`,
+      );
+    }
+  }
+
+  /** Keeps the current character's poses and gives it the new walk cycle. */
+  saveWalkSheet(): void {
+    const preview = this.walkPreview();
+    if (!preview || this.walkProblem()) return;
+    try {
+      this.media.setCharacter(preview);
+      this.notice.set('Saved! She walks with that now.');
+      this.error.set(null);
+    } catch (error) {
+      this.error.set(messageOf(error));
+    }
   }
 
   saveCharacter(): void {
     const character = this.previewSheet();
     if (!character) return;
     try {
-      this.media.setCharacter(character);
-      this.notice.set('Saved! Your character is now in the game.');
+      // Keep any walk cycle already saved: the pose sheet and the walk sheet
+      // are generated separately, and replacing one should not lose the other.
+      this.media.setCharacter({ ...character, walk: this.character().walk });
+      this.notice.set(
+        this.character().walk
+          ? 'Saved! Your character is now in the game.'
+          : 'Saved! Make a walk cycle too, so she turns as she walks the map.',
+      );
       this.error.set(null);
     } catch (error) {
       this.error.set(messageOf(error));
@@ -321,6 +425,8 @@ export class MediaStudioPage {
     await this.run(`Making the ${terrain} ground…`, async () => {
       const image = await this.gemini.generateImage(
         buildTilePrompt(TERRAIN_DESCRIPTIONS[terrain as TerrainId], this.mapStyle()),
+        // Square, or the tile arrives stretched and repeats as stretched.
+        { aspectRatio: '1:1' },
       );
       const src = await rasterise(image.dataUrl, {
         width: TILE_SIZE,
@@ -338,6 +444,7 @@ export class MediaStudioPage {
     await this.run(`Drawing the ${kind}…`, async () => {
       const image = await this.gemini.generateImage(
         buildPropPrompt(PROP_DESCRIPTIONS[kind as PropKind], this.mapStyle()),
+        { aspectRatio: '1:1' },
       );
       // Knocking the flat background out to transparency is the same trick the
       // sprite sheet uses; without it every prop sits in a white box.
@@ -367,6 +474,7 @@ export class MediaStudioPage {
           `A single clear picture of ${subject.label}, filling the frame`,
           this.pictureStyle(),
         ),
+        { aspectRatio: '1:1' },
       );
       const source = imageToImageData(await loadImage(image.dataUrl));
       const cut = cutOutSubject(source, { padding: 8 });
@@ -394,6 +502,7 @@ export class MediaStudioPage {
             `A single clear picture of ${subject.label}, filling the frame`,
             this.pictureStyle(),
           ),
+          { aspectRatio: '1:1' },
         );
         const source = imageToImageData(await loadImage(image.dataUrl));
         const cut = cutOutSubject(source, { padding: 8 });

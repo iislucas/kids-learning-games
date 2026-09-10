@@ -17,6 +17,43 @@ export interface GeneratedImage {
   mimeType: string;
 }
 
+/** The shapes the API accepts. Anything else is rejected outright. */
+export const ASPECT_RATIOS = [
+  '1:1',
+  '1:4',
+  '1:8',
+  '2:3',
+  '3:2',
+  '3:4',
+  '4:1',
+  '4:3',
+  '4:5',
+  '5:4',
+  '8:1',
+  '9:16',
+  '16:9',
+  '21:9',
+] as const;
+
+export type AspectRatio = (typeof ASPECT_RATIOS)[number];
+
+export interface ImageRequest {
+  /**
+   * An image to work from, turning this into an image-to-image edit.
+   */
+  seed?: { dataUrl: string; mimeType?: string };
+  /**
+   * Shape of the result. **Worth setting on anything square**: the model's
+   * default is a wide 1408×768, and a ground tile squashed from that into a
+   * square is visibly stretched.
+   *
+   * Only the ratios in `ASPECT_RATIOS` are accepted — notably `2:1` is not, so
+   * a sheet that wants it should leave this off and take the default, which is
+   * close enough at roughly 1.83:1.
+   */
+  aspectRatio?: AspectRatio;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GeminiImageService {
   private readonly keys = inject(ApiKeysService);
@@ -38,16 +75,16 @@ export class GeminiImageService {
   }
 
   /**
-   * `seed` turns this into an image-to-image edit: the model is handed a
-   * picture to work from as well as words. That is how the landscape is made —
-   * a sketch with the clearings already in the right places constrains the
-   * result far more tightly than any amount of describing them could.
+   * `request.seed` turns this into an image-to-image edit: the model is handed
+   * a picture to work from as well as words, which constrains the result far
+   * more tightly than any amount of describing it could.
    */
   async generateImage(
     prompt: string,
-    seed?: { dataUrl: string; mimeType?: string },
+    request: ImageRequest = {},
   ): Promise<GeneratedImage> {
     const client = await this.client();
+    const { seed, aspectRatio } = request;
     let response;
     try {
       response = await client.models.generateContent({
@@ -63,6 +100,7 @@ export class GeminiImageService {
               { text: prompt },
             ]
           : prompt,
+        ...(aspectRatio ? { config: { imageConfig: { aspectRatio } } } : {}),
       });
     } catch (error) {
       throw new Error(explainGeminiError(error));
@@ -116,6 +154,14 @@ export function explainGeminiError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
   if (/RESOURCE_EXHAUSTED|\b429\b/.test(message)) {
+    // Billing is on, but the account has run dry. Distinct from having no quota
+    // at all, and from a per-minute rate limit that clears by itself.
+    if (/prepayment credits are depleted|credits are depleted/i.test(message)) {
+      return (
+        'The Google account behind this key has run out of prepaid credits. ' +
+        'Top it up at ai.studio/projects, then try again.'
+      );
+    }
     // `limit: 0` means none was ever granted, which is a different problem from
     // having used up an allowance that will come back.
     if (/limit:\s*0\b/.test(message)) {
@@ -134,6 +180,15 @@ export function explainGeminiError(error: unknown): string {
 
   if (/API_KEY_INVALID|API key not valid/i.test(message)) {
     return 'That Gemini API key was not accepted. Check it on the Keys tab.';
+  }
+
+  if (/INVALID_ARGUMENT/i.test(message)) {
+    // Usually an aspect ratio the API does not take. Its own text names the
+    // allowed ones, which is more useful than anything paraphrased here.
+    const detail = message.match(/"message":\s*"([^"]+)"/)?.[1];
+    return detail
+      ? `The image model rejected the request: ${detail.replace(/\\n/g, ' ').trim()}`
+      : message;
   }
 
   if (/PERMISSION_DENIED|SERVICE_DISABLED/i.test(message)) {

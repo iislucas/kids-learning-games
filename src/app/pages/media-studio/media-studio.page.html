@@ -147,6 +147,10 @@
         </div>
       </section>
 
+      @if (sheetProblem(); as problem) {
+        <p class="error" role="alert">{{ problem }}</p>
+      }
+
       @if (rawImage(); as raw) {
         <section class="card block">
           <h2>What came back</h2>
@@ -184,7 +188,12 @@
             </div>
 
             <div class="actions">
-              <button class="btn" type="button" (click)="saveCharacter()">
+              <button
+                class="btn"
+                type="button"
+                [disabled]="!!sheetProblem()"
+                (click)="saveCharacter()"
+              >
                 Use this character
               </button>
               <button
@@ -199,6 +208,61 @@
           }
         </section>
       }
+
+      <section class="card block">
+        <h2>Walking on the map</h2>
+        <p class="hint">
+          The map needs her from eight sides: one row per direction, four frames
+          each. Without it she still gets about, she just does not turn.
+          @if (hasWalkSheet()) {
+            <strong>She has one.</strong>
+          } @else {
+            <strong>She has none yet.</strong>
+          }
+        </p>
+
+        <details class="details">
+          <summary>See the full prompt that gets sent</summary>
+          <pre>{{ walkPrompt() }}</pre>
+        </details>
+
+        <div class="actions">
+          <button
+            class="btn"
+            type="button"
+            [disabled]="!hasGemini() || !!busy()"
+            (click)="generateWalkSheet()"
+          >
+            Generate the walk cycle ✨
+          </button>
+        </div>
+
+        @if (walkProblem(); as problem) {
+          <p class="error" role="alert">{{ problem }}</p>
+        }
+
+        @if (walkRawImage(); as raw) {
+          <img class="rawimage" [src]="raw" alt="The generated walk sheet" />
+          <div class="actions">
+            <button
+              class="btn"
+              type="button"
+              [disabled]="!!walkProblem()"
+              (click)="saveWalkSheet()"
+            >
+              Use this walk cycle
+            </button>
+            <button
+              class="btn btn--ghost"
+              type="button"
+              [disabled]="!!busy()"
+              (click)="reanalyseWalk()"
+            >
+              Analyse again
+            </button>
+          </div>
+        }
+      </section>
     }
 
     @case ('landscape') {

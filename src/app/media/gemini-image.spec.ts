@@ -23,6 +23,20 @@ describe('explainGeminiError', () => {
     expect(explained.length).toBeLessThan(NO_FREE_QUOTA.length);
   });
 
+  it('says to top up when a billed account has run dry', () => {
+    const explained = explainGeminiError(
+      new Error(
+        '{"error":{"code":429,"message":"Your prepayment credits are depleted. ' +
+          'Please go to AI Studio at https://ai.studio/projects to manage your ' +
+          'project and billing.","status":"RESOURCE_EXHAUSTED"}}',
+      ),
+    );
+    expect(explained).toContain('prepaid credits');
+    expect(explained).toContain('ai.studio/projects');
+    // Not the same advice as a project with no image quota at all.
+    expect(explained).not.toContain('no free quota');
+  });
+
   /** A used-up allowance comes back; one that was never granted does not. */
   it('tells a spent allowance apart from one that never existed', () => {
     const spent = explainGeminiError(

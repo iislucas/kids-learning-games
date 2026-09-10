@@ -55,9 +55,19 @@ automatically once registered in `pack-registry.ts`.
 
 ## Media
 
-Default art and sounds are **generated, not hand-drawn** — edit
-`scripts/generate-default-media.mts` and run `pnpm run gen:media`, then commit
-the outputs in `public/media/`. Do not hand-edit files in `public/media/`.
+Nothing in `public/media/` is hand-drawn, and nothing there should be
+hand-edited.
+
+- **Sounds** are synthesised by `scripts/generate-default-media.mts`. Edit that
+  and run `pnpm run gen:media`, then commit the outputs.
+- **Pictures** — the character sheets, and the map's ground tiles and scenery —
+  are generated with an image model in the media studio (`/media`) and committed
+  from there. `src/app/media/default-pack.ts` points at them. To change one,
+  generate a new one in the studio and replace the file.
+
+The studio needs a Gemini key. Put one in `public/local-keys.json` (git-ignored,
+copy `local-keys.example.json`); note that image generation has no free tier and
+needs billing enabled on the key's project.
 
 ## This is for a child
 

@@ -5,6 +5,7 @@ import {
   detectBackgroundColour,
   findContentRuns,
   ImageDataLike,
+  fillEnclosedBackground,
   planUniformGrid,
   tightenBox,
   Box,
@@ -259,5 +260,86 @@ describe('analyseSheet', () => {
     expect(plan.cols).toBe(2);
     expect(plan.cellWidth).toBe(44);
     expect(plan.cellHeight).toBe(54);
+  });
+});
+
+/**
+ * The failure this guards against is subtle and ugly: a sprite drawn with a
+ * white eye highlight, a cream belly or a white flower centre matches the
+ * background exactly, so classifying by colour alone punches holes clean
+ * through it — speckles of transparency scattered over the character.
+ */
+describe('background that the border cannot reach', () => {
+  it('keeps a white patch inside a sprite', () => {
+    // A solid block with a background-coloured square in the middle of it.
+    const img = makeImage(40, 40, WHITE_BG, [
+      { x: 8, y: 8, w: 24, h: 24 },
+      { x: 16, y: 16, w: 8, h: 8, colour: WHITE_BG },
+    ]);
+    const mask = buildOccupancyMask(img);
+
+    // The enclosed patch counts as sprite...
+    expect(mask.bits[20 * 40 + 20]).toBe(1);
+    // ...while the background around the block is still background.
+    expect(mask.bits[2 * 40 + 2]).toBe(0);
+    // And the block itself is unaffected.
+    expect(mask.bits[10 * 40 + 10]).toBe(1);
+  });
+
+  it('still removes background that reaches the edge', () => {
+    const img = makeImage(40, 40, WHITE_BG, [{ x: 10, y: 10, w: 10, h: 10 }]);
+    const mask = buildOccupancyMask(img);
+    let background = 0;
+    for (const bit of mask.bits) if (!bit) background++;
+    expect(background).toBe(40 * 40 - 100);
+  });
+
+  /** A gap open to the edge is background, however narrow the opening. */
+  it('reaches into a notch that is open to the outside', () => {
+    const img = makeImage(40, 40, WHITE_BG, [
+      { x: 8, y: 8, w: 24, h: 24 },
+      // A channel cut from the right edge into the middle of the block.
+      { x: 20, y: 18, w: 20, h: 4, colour: WHITE_BG },
+    ]);
+    const mask = buildOccupancyMask(img);
+    expect(mask.bits[20 * 40 + 30]).toBe(0);
+    expect(mask.bits[20 * 40 + 12]).toBe(1);
+  });
+
+  it('leaves an alpha background alone, holes and all', () => {
+    // With real transparency there is nothing to guess at, and a sprite may
+    // legitimately contain the background colour.
+    const img = makeImage(40, 40, TRANSPARENT_BG, [
+      { x: 8, y: 8, w: 24, h: 24 },
+      { x: 16, y: 16, w: 8, h: 8, colour: TRANSPARENT_BG },
+    ]);
+    const mask = buildOccupancyMask(img);
+    expect(mask.bits[20 * 40 + 20]).toBe(0);
+  });
+
+  it('counts rows and columns from the filled mask, not the raw colours', () => {
+    const img = makeImage(20, 20, WHITE_BG, [
+      { x: 5, y: 5, w: 10, h: 10 },
+      { x: 8, y: 8, w: 4, h: 4, colour: WHITE_BG },
+    ]);
+    const mask = buildOccupancyMask(img);
+    // Row 10 crosses the enclosed patch; every pixel of the block must count.
+    expect(mask.rowCounts[10]).toBe(10);
+    expect(mask.colCounts[10]).toBe(10);
+  });
+
+  describe('fillEnclosedBackground', () => {
+    it('does nothing to an empty image', () => {
+      expect(() => fillEnclosedBackground(new Uint8Array(0), 0, 0)).not.toThrow();
+    });
+
+    it('fills a ring, which is the known trade-off', () => {
+      const bits = new Uint8Array(25);
+      // A 3x3 ring in a 5x5 grid, hollow in the middle.
+      for (const i of [6, 7, 8, 11, 13, 16, 17, 18]) bits[i] = 1;
+      fillEnclosedBackground(bits, 5, 5);
+      expect(bits[12]).toBe(1);
+      expect(bits[0]).toBe(0);
+    });
   });
 });
