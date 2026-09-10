@@ -312,10 +312,39 @@ Anything you generate is saved to `localStorage` and overrides the default.
 "Export pack" writes it out as JSON so it can be moved to another device or
 committed as the new default.
 
-> **On API keys.** Keys are stored in this browser and sent directly to Google
-> and ElevenLabs. There is no server and nothing is proxied. That is fine on your
-> own machine — but do not enter keys on a shared or public deployment. The game
-> itself never touches them; only the studio does.
+#### Keys
+
+A key comes from one of two places, and what is typed into the studio always
+wins over the file:
+
+1. **Typed into the studio**, kept in that browser's `localStorage`.
+2. **`public/local-keys.json`** — copy `public/local-keys.example.json` and
+   paste your keys in:
+
+   ```json
+   { "gemini": "AIza…", "elevenLabs": "sk_…" }
+   ```
+
+   It is git-ignored, and read **only when running the dev server**
+   (`isDevMode()`), so generating a batch of pictures survives a cleared
+   browser without pasting keys in again.
+
+   Its value is deliberately *not* copied into `localStorage`, so the file
+   stays the single source of truth: delete it and the key is gone, rather than
+   lingering in a browser you have to remember to clear.
+
+Everything in `public/` is copied into the build, and the build is published to
+GitHub Pages for anyone to read — so `.gitignore` alone would not be enough.
+[`prepare-pages.mts`](scripts/prepare-pages.mts) **refuses to prepare a build**
+containing `local-keys.json`, and `build:pages` is the workflow's only build
+command. CI never has the file, so the only thing that check can catch is a
+local `pnpm run build:pages` on a machine that has keys — which is exactly the
+case worth stopping.
+
+> **The rest of the caveat still stands.** Keys are sent directly from the
+> browser to Google and ElevenLabs; there is no server and nothing is proxied.
+> That is fine on your own machine — but do not enter keys on a shared or public
+> deployment. The game itself never touches them; only the studio does.
 
 ### The sprite pipeline
 

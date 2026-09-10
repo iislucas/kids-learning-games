@@ -1,0 +1,5 @@
+{
+  "_comment": "Copy this to local-keys.json (git-ignored) and paste your keys in. Read only by the dev server; the site build refuses to ship it.",
+  "gemini": "",
+  "elevenLabs": ""
+}

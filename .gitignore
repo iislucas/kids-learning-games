@@ -39,6 +39,11 @@ testem.log
 /typings
 __screenshots__/
 
+# API keys for the media studio. Kept out of the repo, read only by the dev
+# server, and `scripts/prepare-pages.mts` refuses to build the site if it ever
+# reaches the output. Copy local-keys.example.json to make one.
+/public/local-keys.json
+
 # System files
 .DS_Store
 Thumbs.db

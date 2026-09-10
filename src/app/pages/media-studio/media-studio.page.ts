@@ -94,8 +94,12 @@ export class MediaStudioPage {
       : 'sprites';
   });
 
-  readonly geminiKey = this.keys.geminiKey;
-  readonly elevenLabsKey = this.keys.elevenLabsKey;
+  // The typed-in values are what the boxes edit; `hasGemini` and friends
+  // resolve to the local key file when nothing has been typed.
+  readonly savedGeminiKey = this.keys.savedGeminiKey;
+  readonly savedElevenLabsKey = this.keys.savedElevenLabsKey;
+  readonly geminiFromFile = this.keys.geminiFromFile;
+  readonly elevenLabsFromFile = this.keys.elevenLabsFromFile;
   readonly hasGemini = this.keys.hasGemini;
   readonly hasElevenLabs = this.keys.hasElevenLabs;
 
