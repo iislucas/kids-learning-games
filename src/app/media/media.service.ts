@@ -1,5 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { readJson, removeKey, writeJson } from '../core/stored-signal';
+import { readJson, removeKey, storedSignal, writeJson } from '../core/stored-signal';
 import { defaultMediaPack } from './default-pack';
 import { CharacterDef, ImageDef, MediaPack, SoundDef, SoundId } from './media.types';
 
@@ -28,9 +28,38 @@ export class MediaService {
 
   readonly isCustomised = computed(() => this.overridePack() !== null);
 
+  /**
+   * Which character has been picked, kept apart from the media pack.
+   *
+   * The pack carries an `activeCharacterId` too, but that belongs to the pack —
+   * it travels with an export. Choosing between the characters that ship with
+   * the game is a preference of *this device*, and storing it here means
+   * picking one does not write a whole pack override and light up "you are
+   * using custom media".
+   */
+  private readonly chosenCharacterId = storedSignal<string>('klg.character', '');
+
+  readonly characters = computed(() => this.pack().characters);
+
+  /** True when there is a choice to offer at all. */
+  readonly hasSeveralCharacters = computed(() => this.characters().length > 1);
+
+  chooseCharacter(id: string): void {
+    this.chosenCharacterId.set(id);
+  }
+
+  isChosen(id: string): boolean {
+    return this.character().id === id;
+  }
+
   readonly character = computed<CharacterDef>(() => {
     const pack = this.pack();
+    const chosen = this.chosenCharacterId();
     return (
+      // A choice made on this device wins, but only while it still names a
+      // character the pack has — importing a pack without it falls back rather
+      // than leaving the game with no character at all.
+      (chosen ? pack.characters.find((c) => c.id === chosen) : undefined) ??
       pack.characters.find((c) => c.id === pack.activeCharacterId) ??
       pack.characters[0] ??
       defaultMediaPack().characters[0]
@@ -69,6 +98,9 @@ export class MediaService {
         activeCharacterId: character.id,
       };
     });
+    // Otherwise a character picked earlier would keep overriding the one just
+    // made, which looks like the save having failed.
+    this.chooseCharacter(character.id);
   }
 
   setSound(id: SoundId, sound: SoundDef | undefined): void {
@@ -141,6 +173,9 @@ export class MediaService {
   resetToDefaults(): void {
     removeKey(STORAGE_KEY);
     this.overridePack.set(null);
+    // The chosen character may not exist in the built-in pack; `character`
+    // falls back safely, but clearing it keeps the stored state honest.
+    this.chosenCharacterId.set('');
   }
 
   exportJson(): string {

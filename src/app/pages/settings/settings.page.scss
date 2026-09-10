@@ -63,3 +63,40 @@
   background: var(--bad);
   box-shadow: 0 4px 0 var(--bad-dark);
 }
+
+/* Choosing who to play with. Big, tappable, and showing each of them actually
+   moving — a still thumbnail of a sprite sheet tells a child very little. */
+.cast {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.cast__pick {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 3px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+
+.cast__pick--on {
+  border-color: var(--brand);
+  background: #fff;
+  box-shadow: 0 4px 0 var(--line);
+}
+
+.cast__name {
+  font-size: 1.05rem;
+}

@@ -13,6 +13,32 @@
     </label>
   </section>
 
+  @if (hasSeveralCharacters()) {
+    <section class="card block">
+      <h2>Who do you want to play with?</h2>
+      <ul class="cast">
+        @for (character of characters(); track character.id) {
+          <li>
+            <button
+              class="cast__pick"
+              type="button"
+              [class.cast__pick--on]="isChosen(character.id)"
+              [attr.aria-pressed]="isChosen(character.id)"
+              (click)="chooseCharacter(character.id)"
+            >
+              <app-sprite-character
+                [character]="character"
+                [animation]="isChosen(character.id) ? 'celebrate' : 'idle'"
+                [size]="110"
+              />
+              <span class="cast__name">{{ character.name }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
   <section class="card block">
     <h2>Pictures and sounds</h2>
     <p class="hint">
