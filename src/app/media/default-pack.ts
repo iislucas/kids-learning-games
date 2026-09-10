@@ -99,5 +99,38 @@ export function defaultMediaPack(): MediaPack {
         flower: { src: assetUrl('media/map/prop-flower.webp') },
       },
     },
+    // Keyed by the `picture` a question asks for. Spelling is what needs these:
+    // the whole question is "what is this?", and an emoji is a poor and
+    // sometimes ambiguous stand-in — "☂️" reads as *rain* as readily as
+    // *umbrella*.
+    pictures: {
+      'word.apple': { src: assetUrl('media/pictures/apple.webp') },
+      'word.book': { src: assetUrl('media/pictures/book.webp') },
+      'word.bread': { src: assetUrl('media/pictures/bread.webp') },
+      'word.bus': { src: assetUrl('media/pictures/bus.webp') },
+      'word.butterfly': { src: assetUrl('media/pictures/butterfly.webp') },
+      'word.cat': { src: assetUrl('media/pictures/cat.webp') },
+      'word.chair': { src: assetUrl('media/pictures/chair.webp') },
+      'word.cloud': { src: assetUrl('media/pictures/cloud.webp') },
+      'word.cup': { src: assetUrl('media/pictures/cup.webp') },
+      'word.dinosaur': { src: assetUrl('media/pictures/dinosaur.webp') },
+      'word.dog': { src: assetUrl('media/pictures/dog.webp') },
+      'word.elephant': { src: assetUrl('media/pictures/elephant.webp') },
+      'word.fish': { src: assetUrl('media/pictures/fish.webp') },
+      'word.flower': { src: assetUrl('media/pictures/flower.webp') },
+      'word.frog': { src: assetUrl('media/pictures/frog.webp') },
+      'word.hat': { src: assetUrl('media/pictures/hat.webp') },
+      'word.horse': { src: assetUrl('media/pictures/horse.webp') },
+      'word.house': { src: assetUrl('media/pictures/house.webp') },
+      'word.penguin': { src: assetUrl('media/pictures/penguin.webp') },
+      'word.rainbow': { src: assetUrl('media/pictures/rainbow.webp') },
+      'word.rocket': { src: assetUrl('media/pictures/rocket.webp') },
+      'word.star': { src: assetUrl('media/pictures/star.webp') },
+      'word.strawberry': { src: assetUrl('media/pictures/strawberry.webp') },
+      'word.sun': { src: assetUrl('media/pictures/sun.webp') },
+      'word.train': { src: assetUrl('media/pictures/train.webp') },
+      'word.tree': { src: assetUrl('media/pictures/tree.webp') },
+      'word.umbrella': { src: assetUrl('media/pictures/umbrella.webp') },
+    },
   };
 }

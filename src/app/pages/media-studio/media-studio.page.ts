@@ -428,11 +428,13 @@ export class MediaStudioPage {
         // Square, or the tile arrives stretched and repeats as stretched.
         { aspectRatio: '1:1' },
       );
+      // Exactly square, on purpose: a tile repeats, so its size is structural
+      // rather than cosmetic. The model was asked for 1:1, so nothing stretches.
       const src = await rasterise(image.dataUrl, {
         width: TILE_SIZE,
         height: TILE_SIZE,
-        type: 'image/jpeg',
-        quality: 0.82,
+        type: 'image/webp',
+        quality: 0.86,
       });
       this.media.setMapTile(terrain, { src });
       this.notice.set(`Saved the ${terrain} ground.`);
@@ -450,10 +452,12 @@ export class MediaStudioPage {
       // sprite sheet uses; without it every prop sits in a white box.
       const source = imageToImageData(await loadImage(image.dataUrl));
       const cut = cutOutSubject(source, { padding: 6 });
+      // The subject's own shape is kept: a tall pine and a wide cottage are
+      // different shapes, and squaring them off stretches both.
       const src = await rasterise(cut, {
-        width: PROP_SIZE * 2,
-        height: PROP_SIZE * 2,
-        type: 'image/png',
+        maxSize: PROP_SIZE * 2,
+        type: 'image/webp',
+        quality: 0.88,
       });
       this.media.setMapProp(kind, { src });
       this.notice.set(`Saved the ${kind}.`);
@@ -479,9 +483,9 @@ export class MediaStudioPage {
       const source = imageToImageData(await loadImage(image.dataUrl));
       const cut = cutOutSubject(source, { padding: 8 });
       const src = await rasterise(cut, {
-        width: 256,
-        height: 256,
-        type: 'image/png',
+        maxSize: 256,
+        type: 'image/webp',
+        quality: 0.88,
       });
       this.media.setPicture(subject.id, { src });
     });
@@ -507,7 +511,11 @@ export class MediaStudioPage {
         const source = imageToImageData(await loadImage(image.dataUrl));
         const cut = cutOutSubject(source, { padding: 8 });
         this.media.setPicture(subject.id, {
-          src: await rasterise(cut, { width: 256, height: 256, type: 'image/png' }),
+          src: await rasterise(cut, {
+            maxSize: 256,
+            type: 'image/webp',
+            quality: 0.88,
+          }),
         });
       }
       this.notice.set(`Drew ${missing.length} pictures.`);

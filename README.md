@@ -292,11 +292,23 @@ with four animations, six sound effects, and an optional music loop.
 The repo ships a complete default pack, so a fresh clone is fully playable and
 looks finished with no API keys at all. It comes from two places:
 
-- **The pictures are generated** — Momo's two sprite sheets, and the map's six
-  ground tiles and six scenery sprites — made in the media studio with Gemini
-  and committed. They are WebP, which keeps the transparency a sprite sheet and
-  a cut-out prop both need at about a tenth of the equivalent PNG; the whole
-  media folder is roughly a megabyte.
+- **The pictures are generated** — Momo's two sprite sheets, the map's six
+  ground tiles and six scenery sprites, and a picture for each of the 27
+  spelling words — made in the media studio with Gemini and committed. They are
+  WebP, which keeps the transparency a sprite sheet and a cut-out prop both need
+  at about a tenth of the equivalent PNG; the whole media folder is about 1.5 MB.
+
+  Two rules the pipeline learned the hard way, both of them about *not* being
+  clever with pixels:
+
+  - **Background is what the border can reach, not what matches its colour.**
+    Classifying every background-coloured pixel as background punches holes
+    straight through a sprite wherever it has a white eye highlight or a cream
+    belly. The matching pixels are flooded inward from the edge instead, so
+    anything enclosed stays. (`buildOccupancyMask` in `sprite-grid.ts`.)
+  - **A cut-out keeps its own proportions.** A tall pine and a wide pond are
+    different shapes; forcing either into a square stretches it. Only ground
+    tiles are squared off, because a tile repeats and its shape is structural.
 - **The sounds are synthesised** by
   [`scripts/generate-default-media.mts`](scripts/generate-default-media.mts),
   which needs no key. Edit it and run `pnpm run gen:media`.

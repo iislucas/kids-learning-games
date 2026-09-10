@@ -14,10 +14,24 @@ import { buildOccupancyMask, detectBackgroundColour, tightenBox } from './sprite
  */
 
 export interface RasterOptions {
-  width: number;
-  height: number;
+  /**
+   * Longest side of the result, with the shape of the source kept.
+   *
+   * Almost always what you want. `cutOutSubject` crops to whatever shape the
+   * subject happens to be, and forcing a tall flower or a wide tree into a
+   * square stretches it — which is exactly the sort of wrongness that is hard
+   * to name and impossible to unsee.
+   */
+  maxSize?: number;
+  /**
+   * An exact size instead, stretching the source to fit. Only right when the
+   * source is already the right shape and the size is structural — a ground
+   * tile has to be square, because it repeats.
+   */
+  width?: number;
+  height?: number;
   /** JPEG unless the image needs transparency. */
-  type?: 'image/jpeg' | 'image/png';
+  type?: 'image/jpeg' | 'image/png' | 'image/webp';
   quality?: number;
   /** Painted behind the image, since JPEG has no transparency. */
   background?: string;
@@ -29,8 +43,16 @@ export async function rasterise(
 ): Promise<string> {
   const image = await loadImage(src);
   const canvas = document.createElement('canvas');
-  canvas.width = options.width;
-  canvas.height = options.height;
+
+  if (options.maxSize) {
+    const longest = Math.max(image.naturalWidth, image.naturalHeight) || 1;
+    const scale = Math.min(1, options.maxSize / longest);
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  } else {
+    canvas.width = options.width ?? image.naturalWidth;
+    canvas.height = options.height ?? image.naturalHeight;
+  }
 
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get a 2D canvas context');
