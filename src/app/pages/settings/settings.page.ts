@@ -4,11 +4,13 @@ import { RoutingService } from '../../routing/routing.service';
 import { AudioService } from '../../core/audio.service';
 import { ProgressService } from '../../core/progress.service';
 import { MediaService } from '../../media/media.service';
+import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 import { QUESTION_PACKS } from '../../quiz/pack-registry';
 
 @Component({
   selector: 'app-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [SpriteCharacter],
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.scss',
 })
@@ -27,6 +29,10 @@ export class SettingsPage {
 
   readonly confirmingReset = signal(false);
 
+  readonly characters = this.media.characters;
+  readonly hasSeveralCharacters = this.media.hasSeveralCharacters;
+  readonly chosenCharacter = this.media.character;
+
   readonly mediaHref = computed(() => this.router.hrefForView(Views.MediaStudio));
   readonly homeHref = computed(() => this.router.hrefForView(Views.Home));
 
@@ -36,6 +42,15 @@ export class SettingsPage {
       stats: this.progress.statsFor(pack.id),
     })),
   );
+
+  chooseCharacter(id: string): void {
+    this.media.chooseCharacter(id);
+    this.audio.play('tap');
+  }
+
+  isChosen(id: string): boolean {
+    return this.chosenCharacter().id === id;
+  }
 
   toggleSounds(): void {
     this.audio.toggleSounds();

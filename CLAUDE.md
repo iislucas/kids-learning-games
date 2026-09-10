@@ -60,9 +60,9 @@ hand-edited.
 
 - **Sounds** are synthesised by `scripts/generate-default-media.mts`. Edit that
   and run `pnpm run gen:media`, then commit the outputs.
-- **Pictures** — the character sheets, the map's ground tiles and scenery, and
-  the spelling-word pictures — are generated with an image model in the media
-  studio (`/media`) and committed from there.
+- **Pictures** — the character sheets (two characters: Momo and Kai), the map's
+  ground tiles and scenery, and the spelling-word pictures — are generated with
+  an image model in the media studio (`/media`) and committed from there.
   `src/app/media/default-pack.ts` points at them. To change one, generate a new
   one in the studio and replace the file.
 

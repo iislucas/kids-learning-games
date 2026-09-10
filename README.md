@@ -286,15 +286,22 @@ unwinnable.
 ## Media
 
 Everything the game looks and sounds like is a **media pack**
-([`media.types.ts`](src/app/media/media.types.ts)): one character sprite sheet
-with four animations, six sound effects, and an optional music loop.
+([`media.types.ts`](src/app/media/media.types.ts)): character sprite sheets with
+four animations and an eight-direction walk cycle, six sound effects, an
+optional music loop, the map's tiles and scenery, and the question pictures.
+
+**Two characters ship**, and which one is in play is chosen in Settings. That
+choice is stored on its own (`klg.character`) rather than in the pack, so
+picking one does not write a pack override and light up "you are using custom
+media" — and an imported pack that lacks the chosen character falls back rather
+than leaving the game with nobody in it.
 
 The repo ships a complete default pack, so a fresh clone is fully playable and
 looks finished with no API keys at all. It comes from two places:
 
-- **The pictures are generated** — Momo's two sprite sheets, the map's six
-  ground tiles and six scenery sprites, and a picture for each of the 27
-  spelling words — made in the media studio with Gemini and committed. They are
+- **The pictures are generated** — two sprite sheets each for **Momo** the fox
+  and **Kai** the sea-dragon, the map's six ground tiles and six scenery
+  sprites, and a picture for each of the 27 spelling words — made in the media studio with Gemini and committed. They are
   WebP, which keeps the transparency a sprite sheet and a cut-out prop both need
   at about a tenth of the equivalent PNG; the whole media folder is about 1.5 MB.
 

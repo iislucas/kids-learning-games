@@ -15,6 +15,11 @@ export function assetUrl(path: string): string {
  * The media that ships in the repo, so the game looks and sounds complete on a
  * fresh clone with no API keys at all.
  *
+ * Two characters ship, and which one is in play is a choice made in Settings —
+ * Momo the fox and Kai the sea-dragon. Having someone to pick gives a child
+ * some ownership of the game before she has answered a single question, and
+ * both are drawn in the same style so neither feels like the lesser option.
+ *
  * It comes from two places:
  *
  *  - **Pictures are generated**, made in the media studio with Gemini and
@@ -67,6 +72,36 @@ export function defaultMediaPack(): MediaPack {
             frameCount: 32,
           },
           // Row order, and it must match `DIRECTIONS` in explore/explorer.ts.
+          directions: ['s', 'sw', 'w', 'nw', 'n', 'ne', 'e', 'se'],
+          fps: 8,
+        },
+      },
+      {
+        id: 'kai',
+        name: 'Kai',
+        sheet: {
+          src: assetUrl('media/characters/dragon-poses.webp'),
+          cellWidth: 265,
+          cellHeight: 330,
+          cols: 4,
+          rows: 2,
+          frameCount: 8,
+        },
+        animations: {
+          idle: { frames: [0, 1], fps: 1.4, loop: true },
+          correct: { frames: [2, 3, 3, 2, 3], fps: 6, loop: false },
+          wrong: { frames: [4, 5], fps: 2.5, loop: false },
+          celebrate: { frames: [6, 7], fps: 5, loop: true },
+        },
+        walk: {
+          sheet: {
+            src: assetUrl('media/characters/dragon-walk.webp'),
+            cellWidth: 121,
+            cellHeight: 164,
+            cols: 4,
+            rows: 8,
+            frameCount: 32,
+          },
           directions: ['s', 'sw', 'w', 'nw', 'n', 'ne', 'e', 'se'],
           fps: 8,
         },
