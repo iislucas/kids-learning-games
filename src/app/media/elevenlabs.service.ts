@@ -31,6 +31,17 @@ export class ElevenLabsService {
         'No ElevenLabs API key saved. Add one on the Keys tab to generate sounds.',
       );
     }
+    // The dashboard lists keys by a 32-byte hex *id*, which is what gets copied
+    // by mistake — it looks exactly like a credential. The key itself starts
+    // with `sk_` and is only ever shown when created or rotated, so catching
+    // this here saves a round trip and a baffling authentication error.
+    if (/^[0-9a-f]{32,}$/i.test(apiKey)) {
+      throw new Error(
+        'That looks like the ElevenLabs key ID rather than the key itself. ' +
+          'The key starts with "sk_" and is only shown when you create or ' +
+          'rotate it — rotate the key on elevenlabs.io to see a new one.',
+      );
+    }
 
     const response = await fetch(SOUND_ENDPOINT, {
       method: 'POST',
@@ -47,9 +58,17 @@ export class ElevenLabsService {
     });
 
     if (!response.ok) {
-      throw new Error(
-        `ElevenLabs returned ${response.status}: ${await readError(response)}`,
-      );
+      const detail = await readError(response);
+      if (response.status === 401 || /invalid_api_key/i.test(detail)) {
+        throw new Error(`ElevenLabs did not accept that key: ${detail}`);
+      }
+      if (response.status === 429) {
+        throw new Error(
+          'ElevenLabs quota used up for now. The free tier allows a limited ' +
+            'number of sound generations per month.',
+        );
+      }
+      throw new Error(`ElevenLabs returned ${response.status}: ${detail}`);
     }
 
     return blobToDataUrl(await response.blob());

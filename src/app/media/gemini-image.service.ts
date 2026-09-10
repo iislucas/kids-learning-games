@@ -2,7 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import type { GoogleGenAI } from '@google/genai';
 import { ApiKeysService } from './api-keys.service';
 
-export const IMAGE_MODEL = 'gemini-2.5-flash-image';
+/**
+ * Image generation is a **paid** Gemini feature: the free tier grants zero
+ * image requests, so a brand-new key returns 429 with `limit: 0` on every image
+ * model until billing is enabled on the Cloud project. `explainGeminiError`
+ * below turns that into something readable, because the raw response is a wall
+ * of quota JSON that looks like a bug in the app.
+ */
+export const IMAGE_MODEL = 'gemini-3.1-flash-image';
 
 export interface GeneratedImage {
   /** `data:image/png;base64,...` ready to hand to an <img> or the analyser. */
@@ -41,20 +48,25 @@ export class GeminiImageService {
     seed?: { dataUrl: string; mimeType?: string },
   ): Promise<GeneratedImage> {
     const client = await this.client();
-    const response = await client.models.generateContent({
-      model: IMAGE_MODEL,
-      contents: seed
-        ? [
-            {
-              inlineData: {
-                mimeType: seed.mimeType ?? mimeTypeOf(seed.dataUrl),
-                data: base64Of(seed.dataUrl),
+    let response;
+    try {
+      response = await client.models.generateContent({
+        model: IMAGE_MODEL,
+        contents: seed
+          ? [
+              {
+                inlineData: {
+                  mimeType: seed.mimeType ?? mimeTypeOf(seed.dataUrl),
+                  data: base64Of(seed.dataUrl),
+                },
               },
-            },
-            { text: prompt },
-          ]
-        : prompt,
-    });
+              { text: prompt },
+            ]
+          : prompt,
+      });
+    } catch (error) {
+      throw new Error(explainGeminiError(error));
+    }
 
     const parts = response.candidates?.[0]?.content?.parts ?? [];
     for (const part of parts) {
@@ -89,4 +101,51 @@ function base64Of(dataUrl: string): string {
 
 function mimeTypeOf(dataUrl: string): string {
   return dataUrl.match(/^data:([^;,]+)/)?.[1] ?? 'image/png';
+}
+
+/**
+ * Turns a Gemini failure into something a person can act on.
+ *
+ * The one that matters is the quota error. Image generation has **no free
+ * tier**, so an otherwise perfectly good key returns 429 with `limit: 0` on
+ * every image model, wrapped in several hundred characters of quota JSON. Shown
+ * raw, that reads like the app is broken rather than like an account that needs
+ * billing switched on.
+ */
+export function explainGeminiError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (/RESOURCE_EXHAUSTED|\b429\b/.test(message)) {
+    // `limit: 0` means none was ever granted, which is a different problem from
+    // having used up an allowance that will come back.
+    if (/limit:\s*0\b/.test(message)) {
+      return (
+        'Google gives no free quota for image generation, so this key cannot ' +
+        'make images yet. Enable billing on the Google Cloud project behind ' +
+        'the key (console.cloud.google.com → Billing), then try again. ' +
+        'Nothing else in the studio needs it.'
+      );
+    }
+    const retry = message.match(/retry in ([\d.]+)s/i)?.[1];
+    return retry
+      ? `Too many requests just now — Google asked to wait ${Math.ceil(Number(retry))} seconds. Try again shortly.`
+      : 'Too many requests just now. Wait a moment and try again.';
+  }
+
+  if (/API_KEY_INVALID|API key not valid/i.test(message)) {
+    return 'That Gemini API key was not accepted. Check it on the Keys tab.';
+  }
+
+  if (/PERMISSION_DENIED|SERVICE_DISABLED/i.test(message)) {
+    return (
+      'This key is not allowed to use the image model. Check that the ' +
+      'Generative Language API is enabled for its project.'
+    );
+  }
+
+  if (/\bNOT_FOUND\b|is not found|no longer available/i.test(message)) {
+    return `The image model ${IMAGE_MODEL} was not available to this key. It may have been retired — check the model name in gemini-image.service.ts.`;
+  }
+
+  return message;
 }

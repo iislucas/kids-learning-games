@@ -302,9 +302,9 @@ Generates replacements using your own API keys:
 
 | What | Service | Key |
 | --- | --- | --- |
-| Character sprite sheet | Gemini `gemini-2.5-flash-image` | Gemini |
-| Map ground tiles and scenery sprites | Gemini `gemini-2.5-flash-image` | Gemini |
-| Pictures for the spelling questions | Gemini `gemini-2.5-flash-image` | Gemini |
+| Character sprite sheet | Gemini `gemini-3.1-flash-image` | Gemini |
+| Map ground tiles and scenery sprites | Gemini `gemini-3.1-flash-image` | Gemini |
+| Pictures for the spelling questions | Gemini `gemini-3.1-flash-image` | Gemini |
 | Sound effects | ElevenLabs `/v1/sound-generation` | ElevenLabs |
 | Music loop | Gemini Lyria RealTime | Gemini |
 
@@ -324,6 +324,16 @@ wins over the file:
    ```json
    { "gemini": "AIza…", "elevenLabs": "sk_…" }
    ```
+
+   Two things that catch people out, both of which the studio now says out
+   loud rather than surfacing as raw API JSON:
+
+   - **Gemini image generation has no free tier.** A valid key still fails on
+     every picture with a `limit: 0` quota error until billing is enabled on
+     its Google Cloud project.
+   - **An ElevenLabs key starts with `sk_`.** The long hex string the
+     dashboard lists next to a key is its *id*, not the key; the key itself is
+     only shown when it is created or rotated.
 
    It is git-ignored, and read **only when running the dev server**
    (`isDevMode()`), so generating a batch of pictures survives a cleared
