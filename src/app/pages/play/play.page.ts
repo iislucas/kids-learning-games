@@ -10,12 +10,17 @@ import {
 } from '@angular/core';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
+import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
+import { Rng } from '../../core/rng';
 import { ProgressService } from '../../core/progress.service';
 import { Prize } from '../../core/prizes';
+import { Badge, badgesFor } from '../../core/mastery';
+import { MasteryService } from '../../core/mastery.service';
 import { MediaService } from '../../media/media.service';
 import { AnimationName } from '../../media/media.types';
 import { findPack } from '../../quiz/pack-registry';
+import { ChallengeRef, findChallenge, isChallengeAvailable } from '../../quiz/challenges';
 import { QuestionPack } from '../../quiz/question.types';
 import { PackOptionsService } from '../../quiz/pack-options.service';
 import { QuizSession, QuizSnapshot } from '../../quiz/quiz-session';
@@ -42,19 +47,67 @@ export class PlayPage {
     inject(RoutingService<AppPathPatterns>);
   private readonly audio = inject(AudioService);
   private readonly progress = inject(ProgressService);
+  private readonly mastery = inject(MasteryService);
   private readonly media = inject(MediaService);
   private readonly packOptions = inject(PackOptionsService);
 
   readonly character = this.media.character;
+  readonly characterName = computed(() => this.character().name);
+
+  /**
+   * The drawing for this question, when the media pack has one. Spelling asks
+   * "how do you write this?", so the picture *is* the question; without one the
+   * emoji stands in.
+   */
+  readonly questionPicture = computed(() => {
+    const id = this.snapshot()?.question.picture;
+    return id ? (this.media.picture(id) ?? null) : null;
+  });
 
   private readonly routeSignals = this.router.signals[Views.Play];
   readonly packId = this.routeSignals.pathVars.packId;
   private readonly levelParam = this.routeSignals.urlParams.level;
   private readonly setupParam = this.routeSignals.urlParams.setup;
+  private readonly challengeParam = this.routeSignals.urlParams.challenge;
 
   readonly showSetup = computed(() => this.setupParam() === '1');
 
   readonly pack = computed(() => findPack(this.packId()));
+
+  /**
+   * The challenge being played, if any. A challenge whose category has since
+   * been switched off is dropped rather than played anyway — the same rule that
+   * closes its place on the map — and the round falls back to a normal one.
+   */
+  readonly challengeRef = computed<ChallengeRef | null>(() => {
+    const id = this.challengeParam();
+    if (!id) return null;
+    const ref = findChallenge(id);
+    if (!ref || ref.pack.id !== this.packId()) return null;
+    return isChallengeAvailable(ref, this.packOptions.selectionFor(ref.pack))
+      ? ref
+      : null;
+  });
+
+  readonly challenge = computed(() => this.challengeRef()?.challenge ?? null);
+
+  /** Badges won by the round that just finished. */
+  readonly badgesJustWon = signal<Badge[]>([]);
+
+  /**
+   * Nudge towards the badge still to come. Only shown after a perfect round
+   * that earned the gold star but not yet the crown — "do it again" is a real
+   * invitation at that moment, and nagging at any other time is not.
+   */
+  readonly nextBadgeHint = computed(() => {
+    const challenge = this.challenge();
+    if (!challenge) return '';
+    const record = this.mastery.recordFor(challenge.id);
+    if (badgesFor(record).includes('mastered')) return '';
+    return record.currentPerfectStreak === 1
+      ? 'Do that once more and the crown is yours! 👑'
+      : '';
+  });
 
   /** The level asked for in the URL, clamped to the pack's range. */
   private readonly requestedLevel = computed(() => {
@@ -75,8 +128,12 @@ export class PlayPage {
     return this.packOptions.resolveLevel(pack, this.requestedLevel()) ?? 1;
   });
 
-  /** True when every level has been switched off for this pack. */
+  /**
+   * True when every level has been switched off for this pack. A challenge
+   * carries its own questions, so it is playable regardless of the levels.
+   */
   readonly nothingPlayable = computed(() => {
+    if (this.challengeRef()) return false;
     const pack = this.pack();
     return !!pack && this.packOptions.availableLevelsFor(pack).length === 0;
   });
@@ -115,12 +172,21 @@ export class PlayPage {
   readonly homeHref = computed(() => this.router.hrefForView(Views.Home));
   readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));
 
+  /** Back to where she was standing, rather than to the top of the map. */
+  readonly mapHref = computed(() => {
+    const href = this.router.hrefForView(Views.Map);
+    const challenge = this.challenge();
+    return challenge ? withParam(href, 'at', challenge.id) : href;
+  });
+
   readonly accentColour = computed(() => this.pack()?.colour ?? 'var(--brand)');
 
   /** Only offer the next level up if it is actually switched on. */
   readonly canLevelUp = computed(() => {
     const pack = this.pack();
-    if (!pack) return false;
+    // A challenge is a set of questions, not a rung on the ladder — there is no
+    // "next level" of the 7× table.
+    if (!pack || this.challengeRef()) return false;
     const next = this.level() + 1;
     return next <= pack.levels.length && this.packOptions.isLevelPlayable(pack, next);
   });
@@ -135,6 +201,7 @@ export class PlayPage {
       const pack = this.pack();
       const level = this.level();
       const playable = !this.nothingPlayable();
+      this.challengeRef();
       this.packOptions.selectionKeyFor(pack);
       untracked(() => this.startRound(playable ? pack : undefined, level));
     });
@@ -142,6 +209,9 @@ export class PlayPage {
 
   private startRound(pack: QuestionPack | undefined, level: number): void {
     this.clearTimer();
+    // A challenge deals its own complete set of questions; the deck is drawn
+    // fresh each round so the order changes but the content cannot.
+    const challenge = this.challenge();
     this.session.set(
       pack
         ? new QuizSession(
@@ -150,12 +220,14 @@ export class PlayPage {
             undefined,
             undefined,
             this.packOptions.selectionFor(pack),
+            challenge?.deck(new Rng()),
           )
         : null,
     );
     this.revision.update((n) => n + 1);
     this.resetFeedback();
     this.prizesWonThisRound.set([]);
+    this.badgesJustWon.set([]);
   }
 
   openSetup(): void {
@@ -201,6 +273,8 @@ export class PlayPage {
         wasCorrect: result.wasCorrect,
         streak: result.streak,
         level: this.level(),
+        // So a prize won here can be left on the map where it was won.
+        place: this.challenge()?.id,
       });
       this.starsJustWon.set(outcome.starsAwarded);
       this.newPrizes.set(outcome.newPrizes);
@@ -247,9 +321,27 @@ export class PlayPage {
 
     if (session.isFinished) {
       this.animation.set('celebrate');
-      this.audio.play('finish');
+      this.finishChallenge(session);
+      this.audio.play(this.badgesJustWon().length > 0 ? 'prize' : 'finish');
       this.confettiTrigger.update((n) => n + 1);
     }
+  }
+
+  /**
+   * Records a finished challenge round. `correctCount` is first attempts only,
+   * so a question that had to be corrected keeps the round off perfect — which
+   * is the whole point of the badge.
+   */
+  private finishChallenge(session: QuizSession): void {
+    const challenge = this.challenge();
+    if (!challenge) return;
+    this.badgesJustWon.set(
+      this.mastery.recordChallengeRound({
+        challengeId: challenge.id,
+        correct: session.correctCount,
+        total: session.totalQuestions,
+      }),
+    );
   }
 
   playAgain(): void {

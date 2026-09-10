@@ -1,0 +1,234 @@
+<div class="explore">
+  <header class="explore__bar">
+    <span class="explore__title">
+      <span aria-hidden="true">🗺️</span>
+      <span>
+        <strong>Explore</strong>
+        <span class="hint">{{ earnedCount() }} of {{ totalBadges() }} badges</span>
+      </span>
+    </span>
+
+    <a
+      class="pill"
+      [href]="prizesHref()"
+      (click)="go($event, prizesHref())"
+      aria-label="Stars earned. Go to prizes."
+    >
+      <span aria-hidden="true">⭐</span><strong>{{ stars() }}</strong>
+    </a>
+
+    <button
+      class="pill pill--icon"
+      type="button"
+      (click)="toggleSounds()"
+      [attr.aria-pressed]="soundsOn()"
+      [attr.aria-label]="soundsOn() ? 'Turn sound off' : 'Turn sound on'"
+    >
+      {{ soundsOn() ? '🔊' : '🔇' }}
+    </button>
+
+    <a
+      class="pill pill--icon"
+      [href]="homeHref()"
+      (click)="go($event, homeHref())"
+      aria-label="All the games"
+      >🎮</a
+    >
+
+    <a
+      class="pill pill--icon"
+      [href]="settingsHref()"
+      (click)="go($event, settingsHref())"
+      aria-label="Settings"
+      >⚙️</a
+    >
+  </header>
+
+  <div
+    class="viewport"
+    #viewport
+    tabindex="0"
+    role="application"
+    aria-label="A map to walk around. Tap where you want to go, or use the arrow keys."
+    (keydown)="onKeyDown($event)"
+  >
+    <div
+      class="world"
+      [class.world--painted]="!!painting()"
+      [style.width.px]="mapWidth"
+      [style.height.px]="mapHeight"
+      [style.background-image]="paintingUrl()"
+      (click)="onMapClick($event)"
+    >
+      @if (!painting()) {
+        @for (view of regions(); track view.region.id) {
+          <!-- The ground: one tiled patch per region, clipped to its ellipse. -->
+          <div
+            class="ground"
+            [style.left.px]="view.region.cx - view.region.rx"
+            [style.top.px]="view.region.cy - view.region.ry"
+            [style.width.px]="view.region.rx * 2"
+            [style.height.px]="view.region.ry * 2"
+            [style.background-image]="view.tile"
+            [style.--edge]="view.region.colour"
+          ></div>
+        }
+      }
+
+      <!-- The tracks between the clearings, all in one overlay. -->
+      <svg
+        class="tracks"
+        [attr.viewBox]="'0 0 ' + mapWidth + ' ' + mapHeight"
+        [attr.width]="mapWidth"
+        [attr.height]="mapHeight"
+        aria-hidden="true"
+      >
+        @for (view of regions(); track view.region.id) {
+          @if (view.track) {
+            <path class="tracks__edge" [attr.d]="view.track" />
+            <path class="tracks__path" [attr.d]="view.track" />
+          }
+        }
+      </svg>
+
+      @if (!painting()) {
+        @for (view of regions(); track view.region.id) {
+          @for (prop of view.props; track prop.id) {
+            <img
+              class="prop"
+              [src]="prop.src"
+              alt=""
+              aria-hidden="true"
+              [style.left.px]="prop.x"
+              [style.top.px]="prop.y"
+              [style.width.px]="prop.size"
+              [style.transform]="
+                'translate(-50%, -86%)' + (prop.flipped ? ' scaleX(-1)' : '')
+              "
+            />
+          }
+        }
+      }
+
+      @for (region of layout.regions; track region.id) {
+        <span
+          class="region"
+          [style.left.px]="region.cx"
+          [style.top.px]="region.cy - region.ry + 30"
+          [style.--region]="region.colour"
+        >
+          <span aria-hidden="true">{{ region.emoji }}</span> {{ region.name }}
+        </span>
+      }
+
+      <!-- Prizes sit where they were won. -->
+      @for (won of placedPrizes(); track won.prize.id) {
+        <span
+          class="prize"
+          [style.left.px]="won.x"
+          [style.top.px]="won.y"
+          [attr.title]="won.prize.name"
+          [attr.aria-label]="'Prize won here: ' + won.prize.name"
+          >{{ won.prize.emoji }}</span
+        >
+      }
+
+      @for (view of spots(); track view.spot.challengeId) {
+        <button
+          class="place"
+          type="button"
+          [class.place--closed]="!view.available"
+          [class.place--open]="openSpot()?.spot?.challengeId === view.spot.challengeId"
+          [class.place--finished]="view.stage === 'finished'"
+          [style.left.px]="view.spot.x"
+          [style.top.px]="view.spot.y"
+          [attr.aria-label]="
+            view.ref.challenge.name +
+            (view.available ? '' : ' — switched off') +
+            '. ' +
+            view.badges.length +
+            ' of 2 badges'
+          "
+          (click)="goToSpot($event, view)"
+        >
+          <img class="place__build" [src]="view.build" alt="" aria-hidden="true" />
+          <span class="place__label">{{ view.ref.challenge.short }}</span>
+        </button>
+      }
+
+      <app-walk-sprite
+        class="walker"
+        [character]="character()"
+        [direction]="facing()"
+        [moving]="moving()"
+        [size]="110"
+        [style.left.px]="position().x"
+        [style.top.px]="position().y"
+      />
+    </div>
+  </div>
+
+  @if (openSpot(); as view) {
+    <section class="spotcard card" role="dialog" aria-modal="false">
+      <button
+        class="spotcard__close"
+        type="button"
+        (click)="closeSpot()"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+
+      <p class="spotcard__where">
+        {{ view.ref.pack.emoji }} {{ view.ref.pack.title }}
+      </p>
+      <h2>{{ view.ref.challenge.emoji }} {{ view.ref.challenge.name }}</h2>
+
+      @if (view.available) {
+        <p class="spotcard__goal">{{ view.ref.challenge.goal }}</p>
+
+        @if (openRecord(); as record) {
+          @if (record.attempts > 0) {
+            <p class="hint">
+              Best so far: {{ record.bestCorrect }} out of {{ record.total }}
+              @if (record.currentPerfectStreak === 1) {
+                · one perfect round — do it again for the crown!
+              }
+            </p>
+          }
+        }
+
+        <ul class="spotcard__badges">
+          @for (badge of badges; track badge.id) {
+            <li
+              class="spotcard__badge"
+              [class.spotcard__badge--won]="hasBadge(view, badge.id)"
+            >
+              <span class="spotcard__emoji" aria-hidden="true">{{ badge.emoji }}</span>
+              <span>
+                <strong>{{ badge.name }}</strong>
+                <span class="hint">{{ badge.how }}</span>
+              </span>
+            </li>
+          }
+        </ul>
+
+        <a
+          class="btn btn--block"
+          [href]="view.playHref"
+          (click)="go($event, view.playHref)"
+          >Play this one →</a
+        >
+      } @else {
+        <p class="spotcard__closed">{{ view.closedBecause }}</p>
+        <button
+          class="btn btn--ghost btn--block"
+          type="button"
+          (click)="openSettings($event, view)"
+        >
+          Switch it back on ⚙️
+        </button>
+      }
+    </section>
+  }
+</div>

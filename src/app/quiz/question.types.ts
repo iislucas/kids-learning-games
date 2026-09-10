@@ -7,6 +7,14 @@ export interface Question {
   instruction?: string;
   /** Large decorative emoji shown with the question. */
   emoji?: string;
+  /**
+   * A picture to show instead of the emoji, if the media pack has one drawn.
+   * Spelling needs this: the whole question is "what is this a picture of?",
+   * and an emoji is a poor and sometimes ambiguous stand-in.
+   */
+  picture?: string;
+  /** What that picture should be of, for whoever is generating it. */
+  pictureLabel?: string;
   choices: string[];
   correctIndex: number;
   /** Shown after a wrong answer to teach rather than just mark. */
@@ -52,6 +60,43 @@ export interface PackOption {
 /** Chosen values per option id. */
 export type PackSelection = Record<string, string[]>;
 
+/**
+ * One complete, finite set of questions — the 7× table is exactly 7×1 … 7×10,
+ * the Space topic is exactly its six facts.
+ *
+ * This is what makes "I know my 7× table" something the game can actually see.
+ * A normal round samples a level at random and can only ever say "9 out of 10
+ * of *some* questions"; a challenge round asks every question in the set once,
+ * so getting them all right first time means the whole thing is known, not that
+ * the easy ones came up.
+ *
+ * Levels are difficulty and options are content; a challenge is neither. It is
+ * a named slice of content played to completion, so it lives alongside them
+ * rather than inside either.
+ */
+export interface Challenge {
+  /** Unique across all packs, e.g. `maths.times.7`. */
+  id: string;
+  /** Full name, e.g. "The 7 times table". */
+  name: string;
+  /** What the signpost on the map says, e.g. "7×". Keep it to a few characters. */
+  short: string;
+  emoji: string;
+  /** One line of encouragement naming the target, e.g. "Get all 10 right!". */
+  goal: string;
+  /**
+   * Closes this challenge when that option value is switched off, so emptying a
+   * category takes its challenges out of play too rather than leaving spots
+   * that contradict the settings.
+   */
+  requires?: { optionId: string; value: string };
+  /**
+   * The complete question set, in a freshly shuffled order. Its length is the
+   * length of the round.
+   */
+  deck(rng: Rng): Question[];
+}
+
 export interface QuestionPack {
   id: string;
   title: string;
@@ -61,6 +106,11 @@ export interface QuestionPack {
   description: string;
   levels: Level[];
   options?: PackOption[];
+  /**
+   * Complete question sets that can be played to completion for a badge. See
+   * `Challenge`; the map lays these out as places to visit.
+   */
+  challenges?: Challenge[];
   /** Generates one question for the given 1-based level. */
   generate(level: number, rng: Rng, selection: PackSelection): Question;
   /**
@@ -156,6 +206,8 @@ export function makeChoice(
     distractors: string[];
     instruction?: string;
     emoji?: string;
+    picture?: string;
+    pictureLabel?: string;
     explanation?: string;
   },
 ): Question {
@@ -165,6 +217,8 @@ export function makeChoice(
     prompt: parts.prompt,
     instruction: parts.instruction,
     emoji: parts.emoji,
+    picture: parts.picture,
+    pictureLabel: parts.pictureLabel,
     explanation: parts.explanation,
     choices,
     correctIndex: choices.indexOf(parts.correct),

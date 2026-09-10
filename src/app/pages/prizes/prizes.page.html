@@ -28,6 +28,51 @@
     <li><span aria-hidden="true">🎯</span><strong>{{ accuracyPercent() }}%</strong>correct</li>
   </ul>
 
+  <section class="collection">
+    <h2 class="collection__title">
+      <span aria-hidden="true">🗺️</span>
+      Places mastered
+      <span class="collection__count">{{ badgeCount() }}/{{ totalBadges() }}</span>
+    </h2>
+    <p class="hint badgekey">
+      @for (badge of badges; track badge.id) {
+        <span><span aria-hidden="true">{{ badge.emoji }}</span> {{ badge.how }}.</span>
+      }
+    </p>
+
+    @for (group of masteryGroups(); track group.pack.id) {
+      <h3 class="places__pack">
+        <span aria-hidden="true">{{ group.pack.emoji }}</span>
+        {{ group.pack.title }}
+        <span class="collection__count">{{ group.owned }}/{{ group.total }}</span>
+      </h3>
+      <ul class="places">
+        @for (place of group.places; track place.id) {
+          <li
+            class="place"
+            [class.place--won]="place.badges.length > 0"
+            [attr.aria-label]="place.name + ', ' + place.badges.length + ' of 2 badges'"
+          >
+            <span class="place__label">{{ place.short }}</span>
+            <span class="place__badges" aria-hidden="true">
+              @for (badge of badges; track badge.id) {
+                <span
+                  class="place__badge"
+                  [class.place__badge--won]="hasBadge(place.badges, badge.id)"
+                  >{{ badge.emoji }}</span
+                >
+              }
+            </span>
+          </li>
+        }
+      </ul>
+    }
+
+    <a class="btn btn--ghost btn--block" [href]="mapHref()" (click)="go($event, mapHref())"
+      >Go to the map 🗺️</a
+    >
+  </section>
+
   @for (collection of collections(); track collection.set.id) {
     <section class="collection">
       <h2 class="collection__title">

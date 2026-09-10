@@ -3,236 +3,27 @@
  * fresh clone with no API keys at all.
  *
  * Outputs:
- *   public/media/characters/sparkle-fox.svg   8-pose sprite sheet (4x2, 200px cells)
- *   public/media/sounds/*.wav                 UI and reward sounds
- *   public/media/music/happy-loop.wav         short looping background bed
+ *   public/media/sounds/*.wav          UI and reward sounds
+ *   public/media/music/happy-loop.wav  short looping background bed
  *
  * Run with:  pnpm run gen:media
  * (Node 24 strips the types natively, so this needs no build step.)
  *
  * These outputs are committed. Regenerate them by editing this file and
  * re-running; the media studio can then override any of them at runtime.
+ *
+ * **The pictures are not here.** The character sheets and the map's tiles and
+ * scenery are generated with an image model in the media studio and committed
+ * from there (see `src/app/media/default-pack.ts`) — a synthesised WAV is a
+ * perfectly good sound effect, but programmatically drawn art only ever looked
+ * programmatically drawn. `src/app/explore/map-art.ts` still draws tiles and
+ * props at runtime, as the fallback for a pack whose art has been cleared.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Character sprite sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const CELL = 200;
-export const COLS = 4;
-export const ROWS = 2;
-
-const FUR = '#f4863b';
-const FUR_DARK = '#d96a22';
-const CREAM = '#fff2e0';
-const SCARF = '#e8484f';
-const DARK = '#3d2b1f';
-const PINK = '#ffb3b8';
-
-type Eyes = 'open' | 'happy' | 'wide' | 'blink' | 'puzzled';
-type Mouth = 'smile' | 'bigOpen' | 'small' | 'oh' | 'grin';
-type Legs = 'stand' | 'jump' | 'kick';
-
-interface Pose {
-  name: string;
-  /**
-   * Arm rotation in degrees; 0 hangs straight down. SVG rotation is clockwise
-   * with y pointing down, so a POSITIVE angle swings an arm towards the left of
-   * the image. Outward-and-up is therefore positive on the left arm and
-   * negative on the right — getting this backwards makes the character hug
-   * itself instead of cheering.
-   */
-  armL: number;
-  armR: number;
-  eyes: Eyes;
-  mouth: Mouth;
-  legs: Legs;
-  /** Vertical offset of the whole body (negative = airborne). */
-  dy: number;
-  /** Whole-body tilt in degrees. */
-  tilt: number;
-  sparkles: boolean;
-  /** Renders a raised thumb on the right paw. */
-  thumbsUp: boolean;
-}
-
-/**
- * Must stay in the same order as POSE_PLAN in src/app/media/sprite-prompt.ts:
- * two idle, two correct, two wrong, two celebrate.
- */
-const POSES: Pose[] = [
-  { name: 'idle-1', armL: 10, armR: -10, eyes: 'open', mouth: 'smile', legs: 'stand', dy: 0, tilt: 0, sparkles: false, thumbsUp: false },
-  { name: 'idle-2', armL: 16, armR: -16, eyes: 'blink', mouth: 'small', legs: 'stand', dy: 3, tilt: 0, sparkles: false, thumbsUp: false },
-  { name: 'correct-1', armL: 62, armR: -62, eyes: 'wide', mouth: 'oh', legs: 'stand', dy: -4, tilt: 0, sparkles: true, thumbsUp: false },
-  { name: 'correct-2', armL: 152, armR: -152, eyes: 'happy', mouth: 'bigOpen', legs: 'stand', dy: -8, tilt: 0, sparkles: true, thumbsUp: false },
-  { name: 'wrong-1', armL: 42, armR: -42, eyes: 'puzzled', mouth: 'small', legs: 'stand', dy: 2, tilt: -7, sparkles: false, thumbsUp: false },
-  { name: 'wrong-2', armL: 14, armR: -128, eyes: 'happy', mouth: 'smile', legs: 'stand', dy: 0, tilt: 0, sparkles: false, thumbsUp: true },
-  { name: 'celebrate-1', armL: 165, armR: -165, eyes: 'happy', mouth: 'bigOpen', legs: 'jump', dy: -18, tilt: 0, sparkles: true, thumbsUp: false },
-  { name: 'celebrate-2', armL: 128, armR: -150, eyes: 'happy', mouth: 'grin', legs: 'kick', dy: -6, tilt: 9, sparkles: true, thumbsUp: false },
-];
-
-function eyesSvg(kind: Eyes): string {
-  const left = 86;
-  const right = 114;
-  const y = 70;
-  switch (kind) {
-    case 'happy':
-      // Upturned "^^" crescents.
-      return [left, right]
-        .map(
-          (x) =>
-            `<path d="M ${x - 7} ${y + 2} Q ${x} ${y - 7} ${x + 7} ${y + 2}" fill="none" stroke="${DARK}" stroke-width="3.5" stroke-linecap="round"/>`,
-        )
-        .join('');
-    case 'blink':
-      return [left, right]
-        .map(
-          (x) =>
-            `<path d="M ${x - 6} ${y} L ${x + 6} ${y}" stroke="${DARK}" stroke-width="3.5" stroke-linecap="round"/>`,
-        )
-        .join('');
-    case 'wide':
-      return [left, right]
-        .map(
-          (x) =>
-            `<circle cx="${x}" cy="${y}" r="8" fill="#fff" stroke="${DARK}" stroke-width="2"/>` +
-            `<circle cx="${x + 1}" cy="${y}" r="4.5" fill="${DARK}"/>`,
-        )
-        .join('');
-    case 'puzzled':
-      return (
-        `<circle cx="${left}" cy="${y}" r="5" fill="${DARK}"/>` +
-        `<circle cx="${right}" cy="${y + 1}" r="5" fill="${DARK}"/>` +
-        // One raised brow does all the work of reading as "hmm?".
-        `<path d="M ${right - 8} ${y - 12} Q ${right} ${y - 18} ${right + 8} ${y - 11}" fill="none" stroke="${DARK}" stroke-width="3" stroke-linecap="round"/>`
-      );
-    default:
-      return [left, right]
-        .map(
-          (x) =>
-            `<circle cx="${x}" cy="${y}" r="5.5" fill="${DARK}"/>` +
-            `<circle cx="${x + 2}" cy="${y - 2}" r="1.8" fill="#fff"/>`,
-        )
-        .join('');
-  }
-}
-
-function mouthSvg(kind: Mouth): string {
-  const cx = 100;
-  const y = 90;
-  switch (kind) {
-    case 'bigOpen':
-      return `<path d="M ${cx - 13} ${y} Q ${cx} ${y + 22} ${cx + 13} ${y} Z" fill="${DARK}"/><path d="M ${cx - 6} ${y + 11} Q ${cx} ${y + 17} ${cx + 6} ${y + 11} Z" fill="${PINK}"/>`;
-    case 'oh':
-      return `<ellipse cx="${cx}" cy="${y + 6}" rx="7" ry="9" fill="${DARK}"/>`;
-    case 'small':
-      return `<path d="M ${cx - 6} ${y + 3} Q ${cx} ${y + 8} ${cx + 6} ${y + 3}" fill="none" stroke="${DARK}" stroke-width="3" stroke-linecap="round"/>`;
-    case 'grin':
-      return `<path d="M ${cx - 15} ${y} Q ${cx} ${y + 18} ${cx + 15} ${y}" fill="${DARK}" stroke="${DARK}" stroke-width="3" stroke-linejoin="round"/>`;
-    default:
-      return `<path d="M ${cx - 11} ${y + 1} Q ${cx} ${y + 12} ${cx + 11} ${y + 1}" fill="none" stroke="${DARK}" stroke-width="3.5" stroke-linecap="round"/>`;
-  }
-}
-
-function armSvg(side: 'l' | 'r', angle: number, thumbsUp: boolean): string {
-  const shoulderX = side === 'l' ? 72 : 128;
-  const shoulderY = 118;
-  const length = 38;
-  const paw = thumbsUp && side === 'r';
-  return (
-    `<g transform="rotate(${angle} ${shoulderX} ${shoulderY})">` +
-    `<rect x="${shoulderX - 7}" y="${shoulderY}" width="14" height="${length}" rx="7" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    `<circle cx="${shoulderX}" cy="${shoulderY + length}" r="8" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    (paw
-      ? `<rect x="${shoulderX - 3}" y="${shoulderY + length + 4}" width="6" height="12" rx="3" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>`
-      : '') +
-    `</g>`
-  );
-}
-
-function legsSvg(kind: Legs): string {
-  const leg = (x: number, angle: number, len: number) =>
-    `<g transform="rotate(${angle} ${x} 164)">` +
-    `<rect x="${x - 8}" y="164" width="16" height="${len}" rx="8" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    `<ellipse cx="${x}" cy="${164 + len}" rx="11" ry="7" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    `</g>`;
-
-  switch (kind) {
-    case 'jump':
-      // Tucked up, angled outward — reads as airborne.
-      return leg(86, 26, 16) + leg(114, -26, 16);
-    case 'kick':
-      return leg(86, 6, 22) + leg(114, -46, 24);
-    default:
-      return leg(86, 0, 22) + leg(114, 0, 22);
-  }
-}
-
-function sparklesSvg(): string {
-  const star = (x: number, y: number, r: number, colour: string) =>
-    `<path d="M ${x} ${y - r} L ${x + r * 0.3} ${y - r * 0.3} L ${x + r} ${y} L ${x + r * 0.3} ${y + r * 0.3} L ${x} ${y + r} L ${x - r * 0.3} ${y + r * 0.3} L ${x - r} ${y} L ${x - r * 0.3} ${y - r * 0.3} Z" fill="${colour}"/>`;
-  return (
-    star(38, 46, 11, '#ffd23f') +
-    star(164, 38, 9, '#ffd23f') +
-    star(170, 104, 7, '#7ad7f0') +
-    star(30, 110, 6, '#7ad7f0')
-  );
-}
-
-function characterSvg(pose: Pose): string {
-  return (
-    `<g transform="translate(0 ${pose.dy}) rotate(${pose.tilt} 100 140)">` +
-    // Tail behind the body.
-    `<path d="M 132 148 Q 176 150 172 108 Q 168 132 140 130 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2" stroke-linejoin="round"/>` +
-    `<path d="M 170 118 Q 176 108 172 100 Q 164 110 164 122 Z" fill="${CREAM}"/>` +
-    legsSvg(pose.legs) +
-    // Body.
-    `<ellipse cx="100" cy="134" rx="38" ry="42" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
-    `<ellipse cx="100" cy="142" rx="23" ry="30" fill="${CREAM}"/>` +
-    // Arms sit in front of the body, otherwise the torso hides them entirely
-    // and every pose reads as "standing still".
-    armSvg('l', pose.armL, pose.thumbsUp) +
-    armSvg('r', pose.armR, pose.thumbsUp) +
-    // Scarf.
-    `<path d="M 70 110 Q 100 122 130 110 L 130 120 Q 100 132 70 120 Z" fill="${SCARF}"/>` +
-    `<path d="M 118 118 L 130 146 L 118 142 Z" fill="${SCARF}"/>` +
-    // Ears.
-    `<path d="M 72 46 L 60 8 L 92 30 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
-    `<path d="M 73 40 L 67 20 L 84 32 Z" fill="${PINK}"/>` +
-    `<path d="M 128 46 L 140 8 L 108 30 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
-    `<path d="M 127 40 L 133 20 L 116 32 Z" fill="${PINK}"/>` +
-    // Head.
-    `<circle cx="100" cy="72" r="40" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
-    `<ellipse cx="100" cy="86" rx="27" ry="19" fill="${CREAM}"/>` +
-    `<circle cx="72" cy="86" r="8" fill="${PINK}" opacity="0.55"/>` +
-    `<circle cx="128" cy="86" r="8" fill="${PINK}" opacity="0.55"/>` +
-    eyesSvg(pose.eyes) +
-    `<path d="M 94 80 L 106 80 L 100 87 Z" fill="${DARK}"/>` +
-    mouthSvg(pose.mouth) +
-    (pose.sparkles ? sparklesSvg() : '') +
-    `</g>`
-  );
-}
-
-export function buildSpriteSheetSvg(): string {
-  const cells = POSES.map((pose, index) => {
-    const x = (index % COLS) * CELL;
-    const y = Math.floor(index / COLS) * CELL;
-    return `<g transform="translate(${x} ${y})" data-pose="${pose.name}">${characterSvg(pose)}</g>`;
-  }).join('\n  ');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!-- Generated by scripts/generate-default-media.ts - do not edit by hand. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * CELL}" height="${ROWS * CELL}" viewBox="0 0 ${COLS * CELL} ${ROWS * CELL}">
-  ${cells}
-</svg>
-`;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sounds
@@ -460,8 +251,7 @@ function write(relativePath: string, contents: Buffer | string): void {
 }
 
 function main(): void {
-  console.log('Generating default media...');
-  write('public/media/characters/sparkle-fox.svg', buildSpriteSheetSvg());
+  console.log('Generating default sounds...');
 
   for (const [id, spec] of Object.entries(SOUNDS)) {
     write(

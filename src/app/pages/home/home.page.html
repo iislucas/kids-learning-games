@@ -19,6 +19,18 @@
     </div>
   </section>
 
+  <a class="explore card" [href]="mapHref()" (click)="go($event, mapHref())">
+    <span class="explore__emoji" aria-hidden="true">🗺️</span>
+    <span class="explore__body">
+      <strong>Back to the map</strong>
+      <span class="hint">
+        Walk about and find a challenge — {{ badgeCount() }} of
+        {{ totalBadges }} badges won
+      </span>
+    </span>
+    <span class="explore__go" aria-hidden="true">→</span>
+  </a>
+
   @if (nextPrize(); as prize) {
     <a
       class="nextprize card"

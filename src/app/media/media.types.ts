@@ -54,11 +54,29 @@ export interface SpriteSheet {
   frameCount: number;
 }
 
+/**
+ * A walk cycle in eight directions: one row per direction, one column per
+ * frame.
+ *
+ * Kept beside the main sheet rather than folded into `AnimationName` because a
+ * saved media pack has a `Record<AnimationName, Animation>` written out in full
+ * — widening that union would leave every existing pack missing keys. As an
+ * optional extra structure, an old pack simply has no walk, and the map falls
+ * back to the idle pose.
+ */
+export interface WalkSheet {
+  sheet: SpriteSheet;
+  /** Row order, top to bottom. */
+  directions: string[];
+  fps: number;
+}
+
 export interface CharacterDef {
   id: string;
   name: string;
   sheet: SpriteSheet;
   animations: Record<AnimationName, Animation>;
+  walk?: WalkSheet;
 }
 
 export interface SoundDef {
@@ -81,4 +99,33 @@ export interface MediaPack {
   sounds: Partial<Record<SoundId, SoundDef>>;
   /** Looping background music, or null for none. */
   music: SoundDef | null;
+  /** Generated art for the exploration map. */
+  map?: MapMedia | null;
+  /**
+   * Pictures for questions that have one, keyed by the question's `picture`.
+   * A spelling round shows the thing being spelled; a picture is a far better
+   * clue than an emoji, and for a word she cannot read yet it is the only clue.
+   */
+  pictures?: Partial<Record<string, ImageDef>>;
+}
+
+export interface ImageDef {
+  /** Asset path or `data:` URI. */
+  src: string;
+}
+
+/**
+ * The map's art, generated piece by piece.
+ *
+ * Tiles and props rather than one painting: each is small enough to store, a
+ * tile repeats to fill any region without regenerating, and an image model
+ * asked for one tree gets one tree right. `background` is the older
+ * whole-map painting; when present it covers everything else.
+ */
+export interface MapMedia {
+  background?: ImageDef | null;
+  /** Seamless ground textures, keyed by terrain. */
+  tiles?: Partial<Record<string, ImageDef>>;
+  /** Scenery sprites, keyed by prop kind. */
+  props?: Partial<Record<string, ImageDef>>;
 }

@@ -1,5 +1,6 @@
 import { Rng } from '../../core/rng';
 import {
+  Challenge,
   PackOption,
   PackSelection,
   Question,
@@ -64,6 +65,22 @@ const TOPICS_OPTION: PackOption = {
   ],
 };
 
+/** One challenge per topic: every fact in it, asked once. */
+const SCIENCE_CHALLENGES: Challenge[] = TOPICS_OPTION.choices.map(
+  (choice): Challenge => {
+    const facts = FACTS.filter((fact) => fact.topic === choice.value);
+    return {
+      id: `science.topic.${choice.value}`,
+      name: `Everything about ${choice.label.toLowerCase()}`,
+      short: choice.emoji ?? choice.label,
+      emoji: choice.emoji ?? '🔬',
+      goal: `Get all ${facts.length} right!`,
+      requires: { optionId: TOPICS_OPTION.id, value: choice.value },
+      deck: (rng: Rng) => rng.shuffle(facts).map((fact) => factQuestion(rng, fact)),
+    };
+  },
+);
+
 /**
  * General knowledge. Topics are a pack option rather than levels: space is not
  * harder than animals, so making them a difficulty ladder was never honest, and
@@ -78,18 +95,23 @@ export const sciencePack: QuestionPack = {
   description: 'Animals, bodies, space and nature.',
   levels: [{ number: 1, name: 'Quiz' }],
   options: [TOPICS_OPTION],
+  challenges: SCIENCE_CHALLENGES,
 
   generate(_level: number, rng: Rng, selection: PackSelection): Question {
     const topics = selected(selection, TOPICS_OPTION);
     const pool = FACTS.filter((fact) => topics.includes(fact.topic));
-    const fact = rng.pick(pool.length > 0 ? pool : FACTS);
-    return makeChoice(rng, {
-      instruction: fact.instruction,
-      prompt: fact.prompt,
-      emoji: fact.emoji,
-      correct: fact.correct,
-      distractors: fact.distractors,
-      explanation: fact.explanation,
-    });
+    return factQuestion(rng, rng.pick(pool.length > 0 ? pool : FACTS));
   },
 };
+
+/** Shuffles one authored fact into a question. */
+function factQuestion(rng: Rng, fact: FactQuestion): Question {
+  return makeChoice(rng, {
+    instruction: fact.instruction,
+    prompt: fact.prompt,
+    emoji: fact.emoji,
+    correct: fact.correct,
+    distractors: fact.distractors,
+    explanation: fact.explanation,
+  });
+}

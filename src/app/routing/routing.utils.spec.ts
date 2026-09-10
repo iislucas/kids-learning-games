@@ -5,6 +5,7 @@ import {
   mergeSubsts,
   matchUrl,
   updateSignalsFromSubsts,
+  withParam,
 } from './routing.utils';
 
 describe('Routing Utils', () => {
@@ -169,6 +170,43 @@ describe('Routing Utils', () => {
       };
       const remaining = updateSignalsFromSubsts(substs, signals);
       expect(remaining).toEqual({ invalid: 'param' });
+    });
+  });
+});
+
+describe('withParam', () => {
+  it('starts a query string when there is not one', () => {
+    expect(withParam('play/maths', 'challenge', 'maths.times.3')).toBe(
+      'play/maths?challenge=maths.times.3',
+    );
+  });
+
+  /**
+   * The bug this exists for. `hrefForView` carries the pattern's current url
+   * params across, so its result often already has a query string — and a
+   * second `?` makes everything after it part of the first value, so the
+   * parameter is silently dropped and the game plays the wrong thing.
+   */
+  it('appends to a query string that is already there', () => {
+    expect(withParam('play/maths?level=2', 'challenge', 'maths.times.3')).toBe(
+      'play/maths?level=2&challenge=maths.times.3',
+    );
+    expect(withParam('play/maths?level=2', 'challenge', 'x')).not.toContain('?level=2?');
+  });
+
+  it('escapes values that would otherwise break the query string', () => {
+    expect(withParam('/map', 'at', 'a b&c=d')).toBe('/map?at=a%20b%26c%3Dd');
+  });
+
+  it('round-trips through the parser it was built for', () => {
+    const href = withParam(
+      withParam('play/maths', 'level', '2'),
+      'challenge',
+      'maths.times.3',
+    );
+    expect(parseUrlParams(href).urlParams).toEqual({
+      level: '2',
+      challenge: 'maths.times.3',
     });
   });
 });

@@ -181,8 +181,25 @@ export function buildOccupancyMask(
         isSprite = distance > opts.backgroundTolerance;
       }
 
-      if (isSprite) {
-        bits[y * width + x] = 1;
+      if (isSprite) bits[y * width + x] = 1;
+    }
+  }
+
+  // Colour alone is not enough. A white eye highlight, a cream belly or the
+  // white centre of a flower all match the background exactly, and knocking
+  // every matching pixel out punches holes right through the sprite. What
+  // actually distinguishes background is being *reachable from the edge*, so
+  // the matching pixels are flooded inward from the border and only those the
+  // flood reaches count as background.
+  //
+  // The trade-off is that background genuinely enclosed by the subject — the
+  // middle of a ring — is filled in. For sprites that is almost always the
+  // wanted answer, and it is far less damaging than the speckling it replaces.
+  if (!bg.hasAlpha) fillEnclosedBackground(bits, width, height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (bits[y * width + x]) {
         colCounts[x]++;
         rowCounts[y]++;
       }
@@ -190,6 +207,55 @@ export function buildOccupancyMask(
   }
 
   return { width, height, bits, colCounts, rowCounts };
+}
+
+/**
+ * Marks as sprite every background-coloured pixel the border cannot reach.
+ *
+ * A four-way flood over the background pixels, seeded from every edge pixel.
+ * Anything left unvisited is enclosed, so it belongs to the subject however
+ * much it looks like the background.
+ */
+export function fillEnclosedBackground(
+  bits: Uint8Array,
+  width: number,
+  height: number,
+): void {
+  if (width === 0 || height === 0) return;
+
+  const outside = new Uint8Array(width * height);
+  // A typed stack: a plain array of a million entries is a lot of boxing.
+  const stack = new Int32Array(width * height);
+  let top = 0;
+
+  const push = (index: number) => {
+    if (bits[index] || outside[index]) return;
+    outside[index] = 1;
+    stack[top++] = index;
+  };
+
+  for (let x = 0; x < width; x++) {
+    push(x);
+    push((height - 1) * width + x);
+  }
+  for (let y = 0; y < height; y++) {
+    push(y * width);
+    push(y * width + width - 1);
+  }
+
+  while (top > 0) {
+    const index = stack[--top];
+    const x = index % width;
+    const y = (index - x) / width;
+    if (x > 0) push(index - 1);
+    if (x < width - 1) push(index + 1);
+    if (y > 0) push(index - width);
+    if (y < height - 1) push(index + width);
+  }
+
+  for (let i = 0; i < bits.length; i++) {
+    if (!bits[i] && !outside[i]) bits[i] = 1;
+  }
 }
 
 /**

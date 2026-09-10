@@ -18,6 +18,24 @@
     <button
       type="button"
       role="tab"
+      [attr.aria-selected]="tab() === 'landscape'"
+      [class.tabs__on]="tab() === 'landscape'"
+      (click)="setTab('landscape')"
+    >
+      🗺️ Landscape
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'pictures'"
+      [class.tabs__on]="tab() === 'pictures'"
+      (click)="setTab('pictures')"
+    >
+      🖼️ Pictures
+    </button>
+    <button
+      type="button"
+      role="tab"
       [attr.aria-selected]="tab() === 'sounds'"
       [class.tabs__on]="tab() === 'sounds'"
       (click)="setTab('sounds')"
@@ -129,6 +147,10 @@
         </div>
       </section>
 
+      @if (sheetProblem(); as problem) {
+        <p class="error" role="alert">{{ problem }}</p>
+      }
+
       @if (rawImage(); as raw) {
         <section class="card block">
           <h2>What came back</h2>
@@ -166,7 +188,12 @@
             </div>
 
             <div class="actions">
-              <button class="btn" type="button" (click)="saveCharacter()">
+              <button
+                class="btn"
+                type="button"
+                [disabled]="!!sheetProblem()"
+                (click)="saveCharacter()"
+              >
                 Use this character
               </button>
               <button
@@ -181,8 +208,220 @@
           }
         </section>
       }
+
+      <section class="card block">
+        <h2>Walking on the map</h2>
+        <p class="hint">
+          The map needs her from eight sides: one row per direction, four frames
+          each. Without it she still gets about, she just does not turn.
+          @if (hasWalkSheet()) {
+            <strong>She has one.</strong>
+          } @else {
+            <strong>She has none yet.</strong>
+          }
+        </p>
+
+        <details class="details">
+          <summary>See the full prompt that gets sent</summary>
+          <pre>{{ walkPrompt() }}</pre>
+        </details>
+
+        <div class="actions">
+          <button
+            class="btn"
+            type="button"
+            [disabled]="!hasGemini() || !!busy()"
+            (click)="generateWalkSheet()"
+          >
+            Generate the walk cycle ✨
+          </button>
+        </div>
+
+        @if (walkProblem(); as problem) {
+          <p class="error" role="alert">{{ problem }}</p>
+        }
+
+        @if (walkRawImage(); as raw) {
+          <img class="rawimage" [src]="raw" alt="The generated walk sheet" />
+          <div class="actions">
+            <button
+              class="btn"
+              type="button"
+              [disabled]="!!walkProblem()"
+              (click)="saveWalkSheet()"
+            >
+              Use this walk cycle
+            </button>
+            <button
+              class="btn btn--ghost"
+              type="button"
+              [disabled]="!!busy()"
+              (click)="reanalyseWalk()"
+            >
+              Analyse again
+            </button>
+          </div>
+        }
+      </section>
     }
 
+    @case ('landscape') {
+      <section class="card block">
+        <h2>The map she walks around</h2>
+        <p class="hint">
+          The game draws its own landscape, so this is all optional. It is built
+          from a repeating tile per kind of ground and a sprite per kind of
+          scenery, so each piece can be replaced on its own — and one tree is
+          something an image model gets right, where a whole map is not.
+        </p>
+
+        <img class="rawimage" [src]="mapPlan()" alt="A plan of the whole map" />
+
+        @if (!hasGemini()) {
+          <p class="hint">
+            Add a Gemini API key on the <strong>Keys</strong> tab to generate
+            any of this.
+          </p>
+        }
+
+        <label class="field">
+          <span>What should it all look like?</span>
+          <textarea
+            rows="3"
+            [value]="mapStyle()"
+            (input)="mapStyle.set($any($event.target).value)"
+          ></textarea>
+        </label>
+
+        @if (hasGeneratedMapArt()) {
+          <div class="actions">
+            <button class="btn btn--ghost" type="button" (click)="clearMapArt()">
+              Back to the drawn landscape
+            </button>
+          </div>
+        }
+      </section>
+
+      <section class="card block">
+        <h2>The ground</h2>
+        <p class="hint">
+          Each of these repeats to fill its part of the map, so the thing to
+          check is the edges: a tile that does not join up turns into a grid.
+        </p>
+        <ul class="artgrid">
+          @for (row of tileRows(); track row.id) {
+            <li class="artgrid__item">
+              <img class="artgrid__tile" [src]="row.src" [alt]="row.id + ' ground'" />
+              <strong>{{ row.id }}</strong>
+              <span class="hint">{{ row.description }}</span>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!hasGemini() || !!busy()"
+                (click)="generateTile(row.id)"
+              >
+                {{ row.generated ? 'Make another' : 'Make it' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="card block">
+        <h2>The scenery</h2>
+        <p class="hint">
+          One object each, on a plain background — the background is cut away
+          afterwards so they can stand on any ground.
+        </p>
+        <ul class="artgrid">
+          @for (row of propRows(); track row.id) {
+            <li class="artgrid__item">
+              <img class="artgrid__prop" [src]="row.src" [alt]="row.id" />
+              <strong>{{ row.id }}</strong>
+              <span class="hint">{{ row.description }}</span>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!hasGemini() || !!busy()"
+                (click)="generateProp(row.id)"
+              >
+                {{ row.generated ? 'Make another' : 'Make it' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+    @case ('pictures') {
+      <section class="card block">
+        <h2>Pictures for the spelling questions</h2>
+        <p class="hint">
+          Spelling asks "how do you write this?", so the picture is the whole
+          question. Until one is drawn the game shows an emoji, which is a poor
+          clue — several words share one, and some are ambiguous.
+          {{ pictureCount() }} of {{ pictureRows().length }} drawn.
+        </p>
+
+        @if (!hasGemini()) {
+          <p class="hint">
+            Add a Gemini API key on the <strong>Keys</strong> tab to draw them.
+          </p>
+        }
+
+        <label class="field">
+          <span>What should they look like?</span>
+          <textarea
+            rows="2"
+            [value]="pictureStyle()"
+            (input)="pictureStyle.set($any($event.target).value)"
+          ></textarea>
+        </label>
+
+        <div class="actions">
+          <button
+            class="btn"
+            type="button"
+            [disabled]="!hasGemini() || !!busy() || pictureCount() === pictureRows().length"
+            (click)="generateMissingPictures()"
+          >
+            Draw the {{ pictureRows().length - pictureCount() }} missing ones ✨
+          </button>
+          @if (pictureCount() > 0) {
+            <button
+              class="btn btn--ghost"
+              type="button"
+              [disabled]="!!busy()"
+              (click)="clearPictures()"
+            >
+              Remove them all
+            </button>
+          }
+        </div>
+      </section>
+
+      <section class="card block">
+        <ul class="artgrid">
+          @for (row of pictureRows(); track row.id) {
+            <li class="artgrid__item">
+              @if (row.src) {
+                <img class="artgrid__prop" [src]="row.src" [alt]="row.label" />
+              } @else {
+                <span class="artgrid__empty" aria-hidden="true">?</span>
+              }
+              <strong>{{ row.label }}</strong>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!hasGemini() || !!busy()"
+                (click)="generatePicture(row)"
+              >
+                {{ row.src ? 'Redraw' : 'Draw it' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    }
     @case ('sounds') {
       <section class="card block">
         <h2>Game sounds</h2>
@@ -264,9 +503,15 @@
       <section class="card block">
         <h2>API keys</h2>
         <p class="hint">
-          Keys are stored in this browser only and are sent straight to Google and
-          ElevenLabs when you generate something. There is no server. Do not put
-          your keys in a browser you share with other people.
+          Keys are sent straight to Google and ElevenLabs when you generate
+          something. There is no server. Do not put your keys in a browser you
+          share with other people.
+        </p>
+        <p class="hint">
+          You can also keep them in <code>public/local-keys.json</code> — copy
+          <code>public/local-keys.example.json</code> and paste them in. That
+          file is git-ignored, is read only by the dev server, and the site
+          build refuses to publish it. Anything typed here wins over it.
         </p>
 
         <label class="field">
@@ -274,16 +519,23 @@
           <input
             type="password"
             autocomplete="off"
-            [value]="geminiKey()"
-            (input)="geminiKey.set($any($event.target).value)"
-            placeholder="AIza…"
+            [value]="savedGeminiKey()"
+            (input)="savedGeminiKey.set($any($event.target).value)"
+            [placeholder]="geminiFromFile() ? 'Using the key from local-keys.json' : 'AIza…'"
           />
         </label>
+        @if (geminiFromFile()) {
+          <p class="notice" role="status">
+            Using the Gemini key from <code>local-keys.json</code>.
+          </p>
+        }
         <p class="hint">
           Get one free at
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener"
             >aistudio.google.com/apikey</a
-          >
+          >. Note that <strong>image generation has no free tier</strong>: the
+          key also needs billing enabled on its Google Cloud project, or every
+          picture fails with a quota error.
         </p>
 
         <label class="field">
@@ -291,16 +543,26 @@
           <input
             type="password"
             autocomplete="off"
-            [value]="elevenLabsKey()"
-            (input)="elevenLabsKey.set($any($event.target).value)"
-            placeholder="sk_…"
+            [value]="savedElevenLabsKey()"
+            (input)="savedElevenLabsKey.set($any($event.target).value)"
+            [placeholder]="
+              elevenLabsFromFile() ? 'Using the key from local-keys.json' : 'sk_…'
+            "
           />
         </label>
+        @if (elevenLabsFromFile()) {
+          <p class="notice" role="status">
+            Using the ElevenLabs key from <code>local-keys.json</code>.
+          </p>
+        }
         <p class="hint">
           Get one at
           <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener"
             >elevenlabs.io</a
-          >. The free tier allows 50 sound generations a month, for personal use.
+          >. It starts with <code>sk_</code> — the long hex string the dashboard
+          lists is the key's <em>id</em>, not the key, and only works if you
+          rotate the key to see the real one. The free tier allows 50 sound
+          generations a month, for personal use.
         </p>
 
         <button class="btn btn--ghost" type="button" (click)="clearKeys()">

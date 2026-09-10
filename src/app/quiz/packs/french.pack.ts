@@ -1,5 +1,6 @@
 import { Rng } from '../../core/rng';
 import {
+  Challenge,
   PackOption,
   PackSelection,
   Question,
@@ -75,6 +76,39 @@ const TOPICS_OPTION: PackOption = {
   ],
 };
 
+/**
+ * One challenge per topic — every word in it, French to English — plus the
+ * numbers, which are a closed set of eleven and belong to no topic.
+ */
+const FRENCH_CHALLENGES: Challenge[] = [
+  ...TOPICS_OPTION.choices.map((choice): Challenge => {
+    const words = WORDS.filter((word) => word.topic === choice.value);
+    return {
+      id: `french.topic.${choice.value}`,
+      name: `${choice.label} in French`,
+      short: choice.emoji ?? choice.label,
+      emoji: choice.emoji ?? '🇫🇷',
+      goal: `Get all ${words.length} right!`,
+      requires: { optionId: TOPICS_OPTION.id, value: choice.value },
+      // Distractors come from the same topic, exactly as in a normal round, so
+      // the emoji cannot give the answer away.
+      deck: (rng: Rng) =>
+        rng.shuffle(words).map((word) => frenchToEnglishFor(rng, word, words)),
+    };
+  }),
+  {
+    id: 'french.numbers',
+    name: 'Zéro to dix',
+    short: '🔢',
+    emoji: '🔢',
+    goal: `Get all ${NUMBERS.length} right!`,
+    deck: (rng: Rng) =>
+      rng
+        .shuffle(NUMBERS.map((_, value) => value))
+        .map((value) => numberFor(rng, value)),
+  },
+];
+
 export const frenchPack: QuestionPack = {
   id: 'french',
   title: 'Français',
@@ -88,6 +122,7 @@ export const frenchPack: QuestionPack = {
     { number: 4, name: 'Le or la?' },
   ],
   options: [TOPICS_OPTION],
+  challenges: FRENCH_CHALLENGES,
 
   generate(level: number, rng: Rng, selection: PackSelection): Question {
     const topics = selected(selection, TOPICS_OPTION);
@@ -126,7 +161,15 @@ function wordsInTopics(topics: string[], needed = 1): FrenchWord[] {
 
 function frenchToEnglish(rng: Rng, topics: string[]): Question {
   const pool = wordsInTopics(topics);
-  const word = rng.pick(pool);
+  return frenchToEnglishFor(rng, rng.pick(pool), pool);
+}
+
+/** One specific word, French to English. Shared with the challenge decks. */
+function frenchToEnglishFor(
+  rng: Rng,
+  word: FrenchWord,
+  pool: FrenchWord[],
+): Question {
   // Distractors from the same topic, so the picture cannot give it away —
   // falling back to the whole pool when that topic is too small.
   const sameTopic = pool.filter((w) => w.topic === word.topic && w.en !== word.en);
@@ -157,7 +200,11 @@ function englishToFrench(rng: Rng, topics: string[]): Question {
 }
 
 function numbers(rng: Rng): Question {
-  const value = rng.int(0, 10);
+  return numberFor(rng, rng.int(0, NUMBERS.length - 1));
+}
+
+/** "Which number is this?" for one specific number. */
+function numberFor(rng: Rng, value: number): Question {
   return makeChoice(rng, {
     instruction: 'Which number is this?',
     prompt: NUMBERS[value],

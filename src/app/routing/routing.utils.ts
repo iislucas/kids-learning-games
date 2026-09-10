@@ -340,6 +340,20 @@ export function withBasePath(pathAndParams: string, basePath: string): string {
   return `${basePath}${stripBasePath(pathAndParams, basePath)}`;
 }
 
+/**
+ * Adds one query parameter to an href.
+ *
+ * `hrefForView` already carries the pattern's current url params across, so its
+ * result may well have a query string on it. Appending `?name=value` by hand
+ * then produces `path?level=2?challenge=x`, where everything after the second
+ * `?` is silently swallowed as part of the first value — a bug that looks like
+ * the app ignoring the link rather than like a malformed URL.
+ */
+export function withParam(href: string, name: string, value: string): string {
+  const separator = href.includes('?') ? '&' : '?';
+  return `${href}${separator}${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+}
+
 export function mergeSubsts(
   mergedSubsts: { [key: string]: string },
   substs: { [key: string]: string }
