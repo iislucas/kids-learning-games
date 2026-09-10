@@ -30,11 +30,30 @@ export class GeminiImageService {
     return new GoogleGenAI({ apiKey });
   }
 
-  async generateImage(prompt: string): Promise<GeneratedImage> {
+  /**
+   * `seed` turns this into an image-to-image edit: the model is handed a
+   * picture to work from as well as words. That is how the landscape is made —
+   * a sketch with the clearings already in the right places constrains the
+   * result far more tightly than any amount of describing them could.
+   */
+  async generateImage(
+    prompt: string,
+    seed?: { dataUrl: string; mimeType?: string },
+  ): Promise<GeneratedImage> {
     const client = await this.client();
     const response = await client.models.generateContent({
       model: IMAGE_MODEL,
-      contents: prompt,
+      contents: seed
+        ? [
+            {
+              inlineData: {
+                mimeType: seed.mimeType ?? mimeTypeOf(seed.dataUrl),
+                data: base64Of(seed.dataUrl),
+              },
+            },
+            { text: prompt },
+          ]
+        : prompt,
     });
 
     const parts = response.candidates?.[0]?.content?.parts ?? [];
@@ -59,4 +78,15 @@ export class GeminiImageService {
         : 'The image model returned no image. Try rewording the prompt.',
     );
   }
+}
+
+/** `data:image/png;base64,AAA` → `AAA`. */
+function base64Of(dataUrl: string): string {
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) throw new Error('That does not look like a data: URI.');
+  return dataUrl.slice(comma + 1);
+}
+
+function mimeTypeOf(dataUrl: string): string {
+  return dataUrl.match(/^data:([^;,]+)/)?.[1] ?? 'image/png';
 }

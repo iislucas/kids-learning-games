@@ -54,11 +54,29 @@ export interface SpriteSheet {
   frameCount: number;
 }
 
+/**
+ * A walk cycle in eight directions: one row per direction, one column per
+ * frame.
+ *
+ * Kept beside the main sheet rather than folded into `AnimationName` because a
+ * saved media pack has a `Record<AnimationName, Animation>` written out in full
+ * — widening that union would leave every existing pack missing keys. As an
+ * optional extra structure, an old pack simply has no walk, and the map falls
+ * back to the idle pose.
+ */
+export interface WalkSheet {
+  sheet: SpriteSheet;
+  /** Row order, top to bottom. */
+  directions: string[];
+  fps: number;
+}
+
 export interface CharacterDef {
   id: string;
   name: string;
   sheet: SpriteSheet;
   animations: Record<AnimationName, Animation>;
+  walk?: WalkSheet;
 }
 
 export interface SoundDef {
@@ -81,4 +99,10 @@ export interface MediaPack {
   sounds: Partial<Record<SoundId, SoundDef>>;
   /** Looping background music, or null for none. */
   music: SoundDef | null;
+  /**
+   * A generated painting for the exploration map. Optional: with none, the map
+   * draws its own landscape from `explore/map-art.ts`, which is what a fresh
+   * clone with no API keys gets.
+   */
+  map?: { src: string } | null;
 }

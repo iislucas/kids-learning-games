@@ -28,12 +28,17 @@ import {
 } from '../../media/sprite-sheet';
 import {
   animationsFromPosePlan,
+  buildMapPrompt,
   buildSpriteSheetPrompt,
   DEFAULT_STYLE,
 } from '../../media/sprite-prompt';
+import { approximateBytes, rasterise } from '../../media/raster';
+import { findChallenge } from '../../quiz/challenges';
+import { buildMapLayout } from '../../explore/map-layout';
+import { mapSvg } from '../../explore/map-art';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 
-type Tab = 'sprites' | 'sounds' | 'music' | 'keys';
+type Tab = 'sprites' | 'landscape' | 'sounds' | 'music' | 'keys';
 
 /** Suggested prompts per sound, so the studio is usable without inventing them. */
 const SOUND_PROMPTS: Record<SoundId, string> = {
@@ -65,7 +70,10 @@ export class MediaStudioPage {
   private readonly tabParam = this.router.signals[Views.MediaStudio].urlParams.tab;
   readonly tab = computed<Tab>(() => {
     const value = this.tabParam();
-    return value === 'sounds' || value === 'music' || value === 'keys'
+    return value === 'landscape' ||
+      value === 'sounds' ||
+      value === 'music' ||
+      value === 'keys'
       ? value
       : 'sprites';
   });
@@ -124,6 +132,45 @@ export class MediaStudioPage {
   readonly musicSeconds = signal(20);
 
   readonly animationNames: AnimationName[] = ['idle', 'correct', 'wrong', 'celebrate'];
+
+  // ── Landscape state ────────────────────────────────────────────────────────
+
+  /**
+   * The map's own geometry. Both the sketch the model is shown and the prompt
+   * describing it come from here, which is what keeps a generated painting
+   * lined up with the signposts the game actually places.
+   */
+  readonly mapLayout = buildMapLayout();
+  readonly mapStyle = signal(
+    'soft watercolour storybook map, hand-painted, warm and friendly, seen from above',
+  );
+  readonly mapSketch = computed(() =>
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(mapSvg(this.mapLayout, { labelled: true }))}`,
+  );
+  readonly generatedMap = signal<string | null>(null);
+  readonly savedMap = computed(() => this.media.pack().map?.src ?? null);
+
+  readonly mapPrompt = computed(() =>
+    buildMapPrompt(
+      this.mapLayout.spots.map((spot) => ({
+        number: spot.index + 1,
+        name: findChallenge(spot.challengeId)?.challenge.name ?? spot.challengeId,
+        region:
+          this.mapLayout.regions.find((region) => region.id === spot.regionId)
+            ?.name ?? spot.regionId,
+      })),
+      this.mapLayout.regions.map((region) => ({
+        name: region.name,
+        terrain: TERRAIN_DESCRIPTIONS[region.terrain],
+      })),
+      this.mapStyle(),
+    ),
+  );
+
+  readonly generatedMapSize = computed(() => {
+    const map = this.generatedMap();
+    return map ? Math.round(approximateBytes(map) / 1024) : 0;
+  });
 
   setTab(tab: Tab): void {
     this.tabParam.set(tab);
@@ -203,6 +250,60 @@ export class MediaStudioPage {
     try {
       this.media.setCharacter(character);
       this.notice.set('Saved! Your character is now in the game.');
+      this.error.set(null);
+    } catch (error) {
+      this.error.set(messageOf(error));
+    }
+  }
+
+  // ── Landscape ──────────────────────────────────────────────────────────────
+
+  async generateMap(): Promise<void> {
+    await this.run('Painting the landscape…', async () => {
+      // The sketch goes as a PNG rather than the SVG: it is what the model can
+      // read, and rendering it here means what is sent is exactly what is shown
+      // on the page above the button.
+      const sketch = await rasterise(this.mapSketch(), {
+        width: this.mapLayout.width,
+        height: this.mapLayout.height,
+        type: 'image/png',
+        background: '#ffffff',
+      });
+      const image = await this.gemini.generateImage(this.mapPrompt(), {
+        dataUrl: sketch,
+        mimeType: 'image/png',
+      });
+      // Down to the size the map is actually drawn at before it goes anywhere
+      // near localStorage — a full-size PNG data URI will trip the quota.
+      this.generatedMap.set(
+        await rasterise(image.dataUrl, {
+          width: this.mapLayout.width,
+          height: this.mapLayout.height,
+          type: 'image/jpeg',
+          quality: 0.82,
+          background: '#cdeccb',
+        }),
+      );
+    });
+  }
+
+  saveMap(): void {
+    const map = this.generatedMap();
+    if (!map) return;
+    try {
+      this.media.setMap({ src: map });
+      this.notice.set('Saved! The map now uses your landscape.');
+      this.error.set(null);
+    } catch (error) {
+      this.error.set(messageOf(error));
+    }
+  }
+
+  clearMap(): void {
+    try {
+      this.media.setMap(null);
+      this.generatedMap.set(null);
+      this.notice.set('Back to the drawn landscape.');
       this.error.set(null);
     } catch (error) {
       this.error.set(messageOf(error));
@@ -310,6 +411,15 @@ export class MediaStudioPage {
     }
   }
 }
+
+/** How the prompt should describe each kind of ground. */
+const TERRAIN_DESCRIPTIONS: Record<string, string> = {
+  hills: 'rolling grassy hills with little winding paths',
+  water: 'a chain of bright blue ponds with reeds and lily pads',
+  forest: 'a friendly wood full of round leafy trees',
+  village: 'a tiny village of little cottages with a cobbled square',
+  meadow: 'a wildflower meadow with butterflies and long grass',
+};
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

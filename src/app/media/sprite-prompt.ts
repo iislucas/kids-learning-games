@@ -103,3 +103,39 @@ export function buildSingleImagePrompt(subject: string, style?: string): string 
     'Centred on a plain flat pure white background, generous empty margin, no text, no watermark, no border.',
   ].join('\n');
 }
+
+/**
+ * The prompt for the explorable landscape.
+ *
+ * It goes out with the sketch (see `map-art.ts`) as an image-to-image edit, so
+ * most of its work is *restraint*: the numbered circles are where the signposts
+ * will stand, and a beautiful painting that moves them by fifty pixels is
+ * useless. Naming each numbered place lets the model put something thematically
+ * right there instead of generic scenery.
+ */
+export function buildMapPrompt(
+  places: { number: number; name: string; region: string }[],
+  regions: { name: string; terrain: string }[],
+  style?: string,
+): string {
+  return [
+    'Repaint this sketch as a beautiful top-down storybook map for a childrens game.',
+    '',
+    'THE AREAS, which must stay exactly where the coloured shapes are:',
+    ...regions.map((region) => `- ${region.name}: draw it as ${region.terrain}.`),
+    '',
+    'THE MARKED PLACES. Each numbered circle is a clearing where a signpost will stand:',
+    ...places.map(
+      (place) => `${place.number}. ${place.name} — in ${place.region}.`,
+    ),
+    '',
+    'CRITICAL RULES:',
+    '- Keep every numbered circle at EXACTLY the position and size it has in the sketch.',
+    '- Leave each of those circles as an open, pale, empty clearing. Nothing may be drawn inside them; a signpost is placed on top of each one afterwards.',
+    '- Keep the winding paths that join the circles.',
+    '- Do not move, resize, add or remove any area or any circle.',
+    '- Absolutely no text, no numbers, no labels, no legend, no watermark. The numbers in the sketch are instructions to you, not something to draw.',
+    '- Fill the whole rectangle, edge to edge, with no border or frame.',
+    `STYLE: ${style?.trim() || DEFAULT_STYLE}, seen from directly above, warm and inviting.`,
+  ].join('\n');
+}

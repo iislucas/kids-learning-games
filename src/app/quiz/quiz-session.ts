@@ -74,15 +74,29 @@ export class QuizSession {
 
   private readonly selection: PackSelection;
 
+  readonly totalQuestions: number;
+
+  /**
+   * A fixed set of questions to ask, one each, instead of generating them.
+   * See `Challenge`: this is what lets a round mean "the whole 7× table" rather
+   * than "ten multiplication questions".
+   */
+  private readonly deck: Question[] | null;
+
   constructor(
     readonly pack: QuestionPack,
     readonly level: number,
-    readonly totalQuestions: number = QUESTIONS_PER_ROUND,
+    totalQuestions: number = QUESTIONS_PER_ROUND,
     seed?: number,
     selection?: PackSelection,
+    deck?: Question[],
   ) {
     this.rng = new Rng(seed);
     this.selection = selection ?? defaultSelection(pack);
+    this.deck = deck && deck.length > 0 ? deck : null;
+    // A deck is the round: its length decides how many questions there are, so
+    // a five-fact topic is a five-question round rather than one padded to ten.
+    this.totalQuestions = this.deck ? this.deck.length : totalQuestions;
     this.current = this.drawQuestion();
   }
 
@@ -92,6 +106,12 @@ export class QuizSession {
    * than looping forever.
    */
   private drawQuestion(): Question {
+    if (this.deck) {
+      // Already shuffled and already distinct, so it is simply dealt in order.
+      const question = this.deck[Math.min(this.questionIndex, this.deck.length - 1)];
+      this.lastKey = keyOf(question);
+      return question;
+    }
     let question = this.pack.generate(this.level, this.rng, this.selection);
     for (let i = 0; i < MAX_REDRAWS && keyOf(question) === this.lastKey; i++) {
       question = this.pack.generate(this.level, this.rng, this.selection);
@@ -173,6 +193,17 @@ export class QuizSession {
 
   get isFinished(): boolean {
     return this.phase === 'finished';
+  }
+
+  /**
+   * Every question answered correctly first time.
+   *
+   * `correctCount` only ever counts first attempts, so a question that was got
+   * wrong and then corrected does not qualify — which is exactly what makes a
+   * perfect challenge round mean the whole set is known.
+   */
+  get isPerfect(): boolean {
+    return this.isFinished && this.correctCount === this.totalQuestions;
   }
 
   /** 0..1, for the round progress bar. */

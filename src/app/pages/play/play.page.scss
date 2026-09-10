@@ -25,19 +25,27 @@
   margin-bottom: 12px;
 }
 
-.playbar__back {
+/* The three things in the play bar are one raised white pill; only their size
+   and contents differ. */
+.playbar__back,
+.playbar__cog,
+.playbar__stars {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--paper);
   box-shadow: 0 3px 0 var(--line);
   text-decoration: none;
   color: var(--ink);
-  font-size: 1.2rem;
+}
+
+.playbar__back,
+.playbar__cog {
+  width: 44px;
+  height: 44px;
+  font-size: 1.15rem;
 }
 
 .playbar__title {
@@ -53,33 +61,15 @@
   }
 }
 
-.playbar__cog {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: var(--paper);
-  box-shadow: 0 3px 0 var(--line);
-  font-size: 1.1rem;
-
-  &:active {
-    transform: translateY(3px);
-    box-shadow: none;
-  }
+.playbar__cog:active {
+  transform: translateY(3px);
+  box-shadow: none;
 }
 
 .playbar__stars {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
   font-weight: 800;
   padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--paper);
-  box-shadow: 0 3px 0 var(--line);
 }
 
 .round__meter {
@@ -177,28 +167,33 @@
   color: var(--bad);
 }
 
-.prizewon {
+.prizewon,
+.badgewon {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
-  margin-bottom: 14px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
 }
 
-.prizewon__item {
+.prizewon__item,
+.badgewon__item {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   background: linear-gradient(120deg, #fff5d6, #ffe6f2);
   border: 2px solid var(--gold);
   border-radius: 999px;
-  padding: 8px 16px;
+  padding: 9px 17px;
   font-weight: 700;
   animation: pop 0.45s cubic-bezier(0.2, 1.5, 0.5, 1) both;
 }
 
-.prizewon__emoji {
-  font-size: 1.4rem;
+.prizewon__emoji,
+.badgewon__emoji {
+  font-size: 1.5rem;
 }
 
 @keyframes pop {

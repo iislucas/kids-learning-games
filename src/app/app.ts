@@ -5,6 +5,7 @@ import { AudioService } from './core/audio.service';
 import { ProgressService } from './core/progress.service';
 import { HomePage } from './pages/home/home.page';
 import { PlayPage } from './pages/play/play.page';
+import { MapPage } from './pages/map/map.page';
 import { PrizesPage } from './pages/prizes/prizes.page';
 import { MediaStudioPage } from './pages/media-studio/media-studio.page';
 import { SettingsPage } from './pages/settings/settings.page';
@@ -12,7 +13,7 @@ import { SettingsPage } from './pages/settings/settings.page';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [HomePage, PlayPage, PrizesPage, MediaStudioPage, SettingsPage],
+  imports: [HomePage, PlayPage, MapPage, PrizesPage, MediaStudioPage, SettingsPage],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -29,8 +30,13 @@ export class App {
   readonly stars = this.progress.stars;
   readonly soundsOn = this.audio.soundsEnabled;
 
-  /** The play screen owns the whole viewport, so the chrome steps aside. */
-  readonly showChrome = computed(() => this.view() !== Views.Play);
+  /**
+   * The play screen and the map own the whole viewport, so the chrome steps
+   * aside. Both carry their own way back.
+   */
+  readonly showChrome = computed(
+    () => this.view() !== Views.Play && this.view() !== Views.Map,
+  );
 
   readonly homeHref = computed(() => this.router.hrefForView(Views.Home));
   readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));

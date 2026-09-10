@@ -38,6 +38,19 @@ export function defaultMediaPack(): MediaPack {
           wrong: { frames: [4, 5], fps: 2.5, loop: false },
           celebrate: { frames: [6, 7], fps: 5, loop: true },
         },
+        walk: {
+          sheet: {
+            src: assetUrl('media/characters/sparkle-fox-walk.svg'),
+            cellWidth: 200,
+            cellHeight: 200,
+            cols: 4,
+            rows: 8,
+            frameCount: 32,
+          },
+          // Row order, and it must match `DIRECTIONS` in explore/explorer.ts.
+          directions: ['s', 'sw', 'w', 'nw', 'n', 'ne', 'e', 'se'],
+          fps: 8,
+        },
       },
     ],
     sounds: {

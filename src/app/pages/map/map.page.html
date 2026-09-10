@@ -1,0 +1,179 @@
+<div class="explore">
+  <header class="explore__bar">
+    <a
+      class="explore__back"
+      [href]="homeHref()"
+      (click)="go($event, homeHref())"
+      aria-label="Back to the games"
+      >✕</a
+    >
+    <div class="explore__title">
+      <strong>🗺️ Explore</strong>
+      <span class="hint">{{ earnedCount() }} of {{ totalBadges() }} badges</span>
+    </div>
+  </header>
+
+  <div
+    class="viewport"
+    #viewport
+    tabindex="0"
+    role="application"
+    aria-label="A map to walk around. Use the arrow keys to move."
+    (keydown)="onKeyDown($event)"
+  >
+    <div
+      class="world"
+      [style.width.px]="mapWidth"
+      [style.height.px]="mapHeight"
+      [style.background-image]="background()"
+      (click)="onMapClick($event)"
+    >
+      @for (region of layout.regions; track region.id) {
+        <span
+          class="region"
+          [style.left.px]="region.cx"
+          [style.top.px]="region.cy - region.ry + 34"
+          [style.--region]="region.colour"
+        >
+          <span aria-hidden="true">{{ region.emoji }}</span> {{ region.name }}
+        </span>
+      }
+
+      @for (view of spots(); track view.spot.challengeId) {
+        <button
+          class="signpost"
+          type="button"
+          [class.signpost--closed]="!view.available"
+          [class.signpost--open]="openSpot()?.spot?.challengeId === view.spot.challengeId"
+          [style.left.px]="view.spot.x"
+          [style.top.px]="view.spot.y"
+          [attr.aria-label]="
+            view.ref.challenge.name +
+            (view.available ? '' : ' — switched off') +
+            '. ' +
+            view.badges.length +
+            ' of 2 badges'
+          "
+          (click)="goToSpot($event, view)"
+        >
+          <span class="signpost__label">{{ view.ref.challenge.short }}</span>
+          <span class="signpost__badges" aria-hidden="true">
+            @for (badge of badges; track badge.id) {
+              <span
+                class="signpost__badge"
+                [class.signpost__badge--won]="hasBadge(view, badge.id)"
+                >{{ badge.emoji }}</span
+              >
+            }
+          </span>
+        </button>
+      }
+
+      <app-walk-sprite
+        class="walker"
+        [character]="character()"
+        [direction]="facing()"
+        [moving]="moving()"
+        [size]="110"
+        [style.left.px]="position().x"
+        [style.top.px]="position().y"
+      />
+    </div>
+  </div>
+
+  <div class="pad" aria-label="Move the character">
+    @for (row of [['nw', 'n', 'ne'], ['w', '', 'e'], ['sw', 's', 'se']]; track $index) {
+      <div class="pad__row">
+        @for (direction of row; track $index) {
+          @if (direction) {
+            <button
+              class="pad__key"
+              type="button"
+              [attr.aria-label]="'Walk ' + direction"
+              (click)="nudge($any(direction))"
+            >
+              <span aria-hidden="true">{{
+                {
+                  n: '↑',
+                  ne: '↗',
+                  e: '→',
+                  se: '↘',
+                  s: '↓',
+                  sw: '↙',
+                  w: '←',
+                  nw: '↖'
+                }[direction]
+              }}</span>
+            </button>
+          } @else {
+            <span class="pad__gap" aria-hidden="true"></span>
+          }
+        }
+      </div>
+    }
+  </div>
+
+  @if (openSpot(); as view) {
+    <section class="spotcard card" role="dialog" aria-modal="false">
+      <button
+        class="spotcard__close"
+        type="button"
+        (click)="closeSpot()"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+
+      <p class="spotcard__where">
+        {{ view.ref.pack.emoji }} {{ view.ref.pack.title }}
+      </p>
+      <h2>{{ view.ref.challenge.emoji }} {{ view.ref.challenge.name }}</h2>
+
+      @if (view.available) {
+        <p class="spotcard__goal">{{ view.ref.challenge.goal }}</p>
+
+        @if (openRecord(); as record) {
+          @if (record.attempts > 0) {
+            <p class="hint">
+              Best so far: {{ record.bestCorrect }} out of {{ record.total }}
+              @if (record.currentPerfectStreak === 1) {
+                · one perfect round — do it again for the crown!
+              }
+            </p>
+          }
+        }
+
+        <ul class="spotcard__badges">
+          @for (badge of badges; track badge.id) {
+            <li
+              class="spotcard__badge"
+              [class.spotcard__badge--won]="hasBadge(view, badge.id)"
+            >
+              <span class="spotcard__emoji" aria-hidden="true">{{ badge.emoji }}</span>
+              <span>
+                <strong>{{ badge.name }}</strong>
+                <span class="hint">{{ badge.how }}</span>
+              </span>
+            </li>
+          }
+        </ul>
+
+        <a
+          class="btn btn--block"
+          [href]="view.playHref"
+          (click)="go($event, view.playHref)"
+          >Play this one →</a
+        >
+      } @else {
+        <p class="spotcard__closed">{{ view.closedBecause }}</p>
+        <button
+          class="btn btn--ghost btn--block"
+          type="button"
+          (click)="openSettings($event, view)"
+        >
+          Switch it back on ⚙️
+        </button>
+      }
+    </section>
+  }
+</div>

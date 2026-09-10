@@ -1,5 +1,6 @@
 import { Rng } from '../../core/rng';
 import {
+  Challenge,
   PackOption,
   PackSelection,
   Question,
@@ -8,6 +9,9 @@ import {
   numericDistractors,
   selected,
 } from '../question.types';
+
+/** How far up each times table and each adding family goes. */
+const FACTS_PER_FAMILY = 10;
 
 const TABLES_OPTION: PackOption = {
   id: 'tables',
@@ -36,6 +40,43 @@ const OPERATIONS_OPTION: PackOption = {
   ],
 };
 
+/** 1 … 10, the multiplier or the number being added on. */
+const FACT_RANGE = Array.from({ length: FACTS_PER_FAMILY }, (_, i) => i + 1);
+
+/**
+ * One challenge per times table, and one per adding family.
+ *
+ * The table challenges are gated on the `tables` option: switching the 8× table
+ * off because it has not been taught yet should close its place on the map too,
+ * not leave a spot that contradicts the settings. The adding families are not
+ * gated, because no option narrows adding — the level ladder does that instead,
+ * and a challenge is not a level.
+ */
+const MATHS_CHALLENGES: Challenge[] = [
+  ...TABLES_OPTION.choices.map((choice): Challenge => {
+    const table = Number(choice.value);
+    return {
+      id: `maths.times.${table}`,
+      name: `The ${table} times table`,
+      short: `${table}×`,
+      emoji: '✖️',
+      goal: `Get all ${FACTS_PER_FAMILY} right!`,
+      requires: { optionId: TABLES_OPTION.id, value: choice.value },
+      deck: (rng: Rng) =>
+        rng.shuffle(FACT_RANGE).map((b) => multiplicationFact(rng, table, b)),
+    };
+  }),
+  ...FACT_RANGE.map((n): Challenge => ({
+    id: `maths.add.${n}`,
+    name: `Adding ${n}`,
+    short: `+${n}`,
+    emoji: '➕',
+    goal: `Get all ${FACTS_PER_FAMILY} right!`,
+    deck: (rng: Rng) =>
+      rng.shuffle(FACT_RANGE).map((b) => additionFact(rng, n, b)),
+  })),
+];
+
 /**
  * Arithmetic, generated rather than listed, so it never runs out.
  *
@@ -44,6 +85,9 @@ const OPERATIONS_OPTION: PackOption = {
  * which tables the multiplying round uses is a pack option rather than a level,
  * so practice can be narrowed to whatever is being learned right now without
  * making the questions easier or harder.
+ *
+ * The challenges cut across that ladder: one table, or one adding family, asked
+ * right through.
  */
 export const mathsPack: QuestionPack = {
   id: 'maths',
@@ -59,6 +103,7 @@ export const mathsPack: QuestionPack = {
     { number: 5, name: 'Times tables' },
   ],
   options: [TABLES_OPTION, OPERATIONS_OPTION],
+  challenges: MATHS_CHALLENGES,
 
   generate(level: number, rng: Rng, selection: PackSelection): Question {
     const tables = selected(selection, TABLES_OPTION).map(Number);
@@ -106,6 +151,11 @@ function effectiveOperations(selection: PackSelection): string[] {
 function addition(rng: Rng, min: number, max: number, total: number): Question {
   const a = rng.int(min, Math.max(min, total - min));
   const b = rng.int(min, Math.max(min, Math.min(max, total - a)));
+  return additionFact(rng, a, b);
+}
+
+/** One specific sum. Shared so a challenge deck asks it exactly as a round does. */
+function additionFact(rng: Rng, a: number, b: number): Question {
   const answer = a + b;
   return makeChoice(rng, {
     prompt: `${a} + ${b} = ?`,
@@ -134,8 +184,11 @@ function multiplication(rng: Rng, tables: number[]): Question {
   // Unreachable safety net: a level whose tables are all off is not offered in
   // the first place. Falling back beats throwing mid-round if that ever slips.
   const pool = tables.length > 0 ? tables : [2, 5, 10];
-  const a = rng.pick(pool);
-  const b = rng.int(1, 10);
+  return multiplicationFact(rng, rng.pick(pool), rng.int(1, FACTS_PER_FAMILY));
+}
+
+/** One specific times fact, `a × b`. */
+function multiplicationFact(rng: Rng, a: number, b: number): Question {
   const answer = a * b;
   return makeChoice(rng, {
     prompt: `${a} × ${b} = ?`,

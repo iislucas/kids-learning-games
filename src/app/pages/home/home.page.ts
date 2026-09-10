@@ -3,9 +3,12 @@ import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { AudioService } from '../../core/audio.service';
 import { ProgressService } from '../../core/progress.service';
+import { BADGES } from '../../core/mastery';
+import { MasteryService } from '../../core/mastery.service';
 import { MediaService } from '../../media/media.service';
 import { QUESTION_PACKS } from '../../quiz/pack-registry';
 import { PackOptionsService } from '../../quiz/pack-options.service';
+import { ALL_CHALLENGES } from '../../quiz/challenges';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 
 @Component({
@@ -20,6 +23,7 @@ export class HomePage {
     inject(RoutingService<AppPathPatterns>);
   private readonly audio = inject(AudioService);
   private readonly progress = inject(ProgressService);
+  private readonly mastery = inject(MasteryService);
   private readonly media = inject(MediaService);
   private readonly packOptions = inject(PackOptionsService);
 
@@ -31,6 +35,10 @@ export class HomePage {
   readonly progressToNextPrize = this.progress.progressToNextPrize;
 
   readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));
+  readonly mapHref = computed(() => this.router.hrefForView(Views.Map));
+
+  readonly badgeCount = this.mastery.badgeCount;
+  readonly totalBadges = ALL_CHALLENGES.length * BADGES.length;
 
   /** Cards show where she got to, so picking up again feels continuous. */
   readonly cards = computed(() =>

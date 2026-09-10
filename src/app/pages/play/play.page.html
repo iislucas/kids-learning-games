@@ -15,14 +15,19 @@
         >✕</a
       >
       <div class="playbar__title">
-        <strong>{{ pack.emoji }} {{ pack.title }}</strong>
-        <span class="hint">
-          @if (pack.levels.length > 1) {
-            Level {{ level() }} · {{ levelName() }}
-          } @else {
-            {{ levelName() }}
-          }
-        </span>
+        @if (challenge(); as challenge) {
+          <strong>{{ challenge.emoji }} {{ challenge.name }}</strong>
+          <span class="hint">{{ challenge.goal }}</span>
+        } @else {
+          <strong>{{ pack.emoji }} {{ pack.title }}</strong>
+          <span class="hint">
+            @if (pack.levels.length > 1) {
+              Level {{ level() }} · {{ levelName() }}
+            } @else {
+              {{ levelName() }}
+            }
+          </span>
+        }
       </div>
       <button
         class="playbar__cog"
@@ -78,7 +83,16 @@
             <strong>{{ snap.totalQuestions }}</strong>
           </p>
 
-          @if (snap.correctCount === snap.totalQuestions) {
+          @if (challenge(); as challenge) {
+            @if (snap.correctCount === snap.totalQuestions) {
+              <p class="finish__note">Every single one — you know them all! 🌟</p>
+            } @else {
+              <p class="finish__note">
+                Nearly! Get all {{ snap.totalQuestions }} right in one go for the
+                gold star. 💪
+              </p>
+            }
+          } @else if (snap.correctCount === snap.totalQuestions) {
             <p class="finish__note">Perfect score! Amazing! 🌟</p>
           } @else if (snap.correctCount >= 7) {
             <p class="finish__note">Brilliant work! 🎉</p>
@@ -86,9 +100,22 @@
             <p class="finish__note">Good try — let's do another! 💪</p>
           }
 
+          @if (badgesJustWon().length > 0) {
+            <ul class="badgewon" role="status">
+              @for (badge of badgesJustWon(); track badge.id) {
+                <li class="badgewon__item">
+                  <span class="badgewon__emoji" aria-hidden="true">{{ badge.emoji }}</span>
+                  New badge: <strong>{{ badge.name }}</strong>
+                </li>
+              }
+            </ul>
+          } @else if (nextBadgeHint(); as hint) {
+            <p class="hint">{{ hint }}</p>
+          }
+
           <div class="finish__actions">
             <button class="btn btn--block" type="button" (click)="playAgain()">
-              Play again
+              {{ challenge() ? 'Try it again' : 'Play again' }}
             </button>
             @if (canLevelUp()) {
               <button
@@ -99,12 +126,21 @@
                 Try level {{ level() + 1 }} ↑
               </button>
             }
-            <a
-              class="btn btn--ghost btn--block"
-              [href]="homeHref()"
-              (click)="go($event, homeHref())"
-              >Choose another game</a
-            >
+            @if (challenge()) {
+              <a
+                class="btn btn--ghost btn--block"
+                [href]="mapHref()"
+                (click)="go($event, mapHref())"
+                >Back to the map 🗺️</a
+              >
+            } @else {
+              <a
+                class="btn btn--ghost btn--block"
+                [href]="homeHref()"
+                (click)="go($event, homeHref())"
+                >Choose another game</a
+              >
+            }
           </div>
         </section>
       } @else {

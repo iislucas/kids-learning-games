@@ -117,3 +117,67 @@
     opacity: 0.3;
   }
 }
+
+/* The badges won on the map. Compact, because there are far more of these than
+   there are stickers, and the point is to see the gaps at a glance. */
+.badgekey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 12px;
+}
+
+.places__pack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 8px;
+  font-size: 1rem;
+}
+
+.places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 8px;
+}
+
+.place {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 8px 4px;
+  border-radius: 14px;
+  border: 2px dashed var(--line);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.place--won {
+  border-style: solid;
+  border-color: var(--gold);
+  background: #fffaea;
+}
+
+.place__label {
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.place__badges {
+  display: flex;
+  gap: 1px;
+  font-size: 0.75rem;
+}
+
+.place__badge {
+  filter: grayscale(1);
+  opacity: 0.25;
+}
+
+.place__badge--won {
+  filter: none;
+  opacity: 1;
+}

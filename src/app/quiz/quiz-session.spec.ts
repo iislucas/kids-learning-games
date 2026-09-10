@@ -251,6 +251,76 @@ describe('QuizSession', () => {
   });
 });
 
+/**
+ * A challenge round: a fixed deck instead of a generator. The retry and
+ * first-attempt-only scoring have to behave exactly as they do in a normal
+ * round, because that is what makes a perfect score mean anything.
+ */
+describe('QuizSession with a deck', () => {
+  const deck: Question[] = [1, 2, 3, 4, 5].map((n) => ({
+    prompt: `7 x ${n}`,
+    choices: [String(7 * n), 'a', 'b', 'c'],
+    correctIndex: 0,
+  }));
+
+  const deckSession = () => new QuizSession(stubPack, 1, 10, 1, undefined, deck);
+
+  it('takes its length from the deck, not the round default', () => {
+    const session = deckSession();
+    expect(session.totalQuestions).toBe(5);
+    expect(session.snapshot().totalQuestions).toBe(5);
+  });
+
+  it('asks every question in the deck exactly once, in order', () => {
+    const session = deckSession();
+    const asked: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      asked.push(session.snapshot().question.prompt);
+      session.answer(0);
+      session.advance();
+    }
+    expect(asked).toEqual(deck.map((question) => question.prompt));
+    expect(session.isFinished).toBe(true);
+  });
+
+  it('is perfect only when every answer was right first time', () => {
+    const session = deckSession();
+    answerAll(session, 0, 5);
+    expect(session.isPerfect).toBe(true);
+    expect(session.correctCount).toBe(5);
+  });
+
+  it('is not perfect when one had to be corrected', () => {
+    const session = deckSession();
+    answerWrongThenRight(session);
+    answerAll(session, 0, 4);
+    expect(session.isFinished).toBe(true);
+    expect(session.isPerfect).toBe(false);
+    expect(session.correctCount).toBe(4);
+  });
+
+  it('still puts a wrong question back rather than skipping it', () => {
+    const session = deckSession();
+    const first = session.snapshot().question.prompt;
+    session.answer(1);
+    expect(session.snapshot().awaitingRetry).toBe(true);
+    session.advance();
+    expect(session.snapshot().question.prompt).toBe(first);
+  });
+
+  it('is not perfect before the round has finished', () => {
+    const session = deckSession();
+    answerAll(session, 0, 4);
+    expect(session.isPerfect).toBe(false);
+  });
+
+  it('ignores an empty deck and generates as usual', () => {
+    const session = new QuizSession(stubPack, 1, 10, 1, undefined, []);
+    expect(session.totalQuestions).toBe(10);
+    expect(session.snapshot().question.prompt).toBe('1 + 1');
+  });
+});
+
 describe('QuizSession question variety', () => {
   for (const pack of QUESTION_PACKS) {
     it(`never repeats a question back-to-back in ${pack.id}`, () => {

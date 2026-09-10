@@ -87,6 +87,11 @@ export class MediaService {
     this.update((pack) => ({ ...pack, music }));
   }
 
+  /** The generated landscape, or null to fall back to the drawn one. */
+  setMap(map: { src: string } | null): void {
+    this.update((pack) => ({ ...pack, map }));
+  }
+
   resetToDefaults(): void {
     removeKey(STORAGE_KEY);
     this.overridePack.set(null);

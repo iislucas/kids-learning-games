@@ -18,6 +18,15 @@
     <button
       type="button"
       role="tab"
+      [attr.aria-selected]="tab() === 'landscape'"
+      [class.tabs__on]="tab() === 'landscape'"
+      (click)="setTab('landscape')"
+    >
+      🗺️ Landscape
+    </button>
+    <button
+      type="button"
+      role="tab"
       [attr.aria-selected]="tab() === 'sounds'"
       [class.tabs__on]="tab() === 'sounds'"
       (click)="setTab('sounds')"
@@ -183,6 +192,87 @@
       }
     }
 
+    @case ('landscape') {
+      <section class="card block">
+        <h2>The map she walks around</h2>
+        <p class="hint">
+          The game draws its own landscape, so this is optional. Generating one
+          repaints that same landscape as a picture — the clearings the
+          signposts stand in have to stay exactly where they are, which is why
+          the model is handed the sketch below rather than only words.
+        </p>
+
+        @if (!hasGemini()) {
+          <p class="hint">
+            Add a Gemini API key on the <strong>Keys</strong> tab to generate a
+            landscape.
+          </p>
+        }
+
+        <h3>The sketch it is given</h3>
+        <img class="rawimage" [src]="mapSketch()" alt="A sketch of the map layout" />
+
+        <label class="field">
+          <span>What should it look like?</span>
+          <textarea
+            rows="2"
+            [value]="mapStyle()"
+            (input)="mapStyle.set($any($event.target).value)"
+          ></textarea>
+        </label>
+
+        <details class="details">
+          <summary>See the full prompt that gets sent</summary>
+          <pre>{{ mapPrompt() }}</pre>
+        </details>
+
+        <div class="actions">
+          <button
+            class="btn"
+            type="button"
+            [disabled]="!hasGemini() || !!busy()"
+            (click)="generateMap()"
+          >
+            Paint the landscape ✨
+          </button>
+          @if (savedMap()) {
+            <button
+              class="btn btn--ghost"
+              type="button"
+              [disabled]="!!busy()"
+              (click)="clearMap()"
+            >
+              Back to the drawn one
+            </button>
+          }
+        </div>
+      </section>
+
+      @if (generatedMap(); as painted) {
+        <section class="card block">
+          <h2>What came back</h2>
+          <p class="hint">
+            About {{ generatedMapSize() }} kB once saved. Check the pale circles
+            still line up with where the signposts go — if the model has moved
+            them, paint it again.
+          </p>
+          <img class="rawimage" [src]="painted" alt="The generated landscape" />
+          <div class="actions">
+            <button class="btn" type="button" (click)="saveMap()">
+              Use this landscape
+            </button>
+            <button
+              class="btn btn--ghost"
+              type="button"
+              [disabled]="!!busy()"
+              (click)="generateMap()"
+            >
+              Paint another
+            </button>
+          </div>
+        </section>
+      }
+    }
     @case ('sounds') {
       <section class="card block">
         <h2>Game sounds</h2>

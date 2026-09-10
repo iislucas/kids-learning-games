@@ -1,5 +1,6 @@
 import { Rng } from '../../core/rng';
 import {
+  Challenge,
   PackOption,
   PackSelection,
   Question,
@@ -73,6 +74,48 @@ const WORD_SETS_OPTION: PackOption = {
   ],
 };
 
+/**
+ * The sixteen sight words are two challenges rather than one: a sixteen-question
+ * round is a long time to hold a perfect score for a seven-year-old, and the
+ * badge is meant to be winnable.
+ */
+const SIGHT_WORD_DECKS = [SIGHT_WORDS.slice(0, 8), SIGHT_WORDS.slice(8)];
+
+const ENGLISH_CHALLENGES: Challenge[] = [
+  ...WORD_SETS_OPTION.choices.map((choice): Challenge => {
+    const band = Number(choice.value);
+    const words = WORDS.filter((entry) => entry.band === band);
+    return {
+      id: `english.words.${band}`,
+      name: `Spell every ${choice.label.toLowerCase().replace(/ words$/, '')} word`,
+      short: choice.emoji ?? choice.label,
+      emoji: choice.emoji ?? '📚',
+      goal: `Spell all ${words.length} of them!`,
+      requires: { optionId: WORD_SETS_OPTION.id, value: choice.value },
+      deck: (rng: Rng) =>
+        rng.shuffle(words).map((entry) => spellWordFor(rng, entry)),
+    };
+  }),
+  ...SIGHT_WORD_DECKS.map((words, index): Challenge => ({
+    id: `english.sight.${index + 1}`,
+    name: `Tricky words ${index + 1}`,
+    short: `👀${index + 1}`,
+    emoji: '👀',
+    goal: `Get all ${words.length} right!`,
+    deck: (rng: Rng) =>
+      rng.shuffle(words).map((word) => sightWordFor(rng, word)),
+  })),
+  {
+    id: 'english.rhyme',
+    name: 'Every rhyming family',
+    short: '🎵',
+    emoji: '🎵',
+    goal: `Get all ${RHYME_GROUPS.length} right!`,
+    deck: (rng: Rng) =>
+      rng.shuffle(RHYME_GROUPS).map((group) => rhymeFor(rng, group)),
+  },
+];
+
 export const englishPack: QuestionPack = {
   id: 'english',
   title: 'Word Play',
@@ -86,6 +129,7 @@ export const englishPack: QuestionPack = {
     { number: 4, name: 'Tricky words' },
   ],
   options: [WORD_SETS_OPTION],
+  challenges: ENGLISH_CHALLENGES,
 
   generate(level: number, rng: Rng, selection: PackSelection): Question {
     const bands = selected(selection, WORD_SETS_OPTION).map(Number);
@@ -131,7 +175,11 @@ function missingLetter(rng: Rng, bands: number[]): Question {
 }
 
 function spellWord(rng: Rng, bands: number[]): Question {
-  const entry = rng.pick(wordsInBands(bands));
+  return spellWordFor(rng, rng.pick(wordsInBands(bands)));
+}
+
+/** Spelling one specific word. Shared with the challenge decks. */
+function spellWordFor(rng: Rng, entry: WordEntry): Question {
   return makeChoice(rng, {
     instruction: 'How do you spell it?',
     prompt: entry.emoji,
@@ -173,7 +221,11 @@ function misspellings(rng: Rng, word: string): string[] {
 }
 
 function rhyme(rng: Rng): Question {
-  const group = rng.pick(RHYME_GROUPS);
+  return rhymeFor(rng, rng.pick(RHYME_GROUPS));
+}
+
+/** A rhyme question drawn from one specific family. */
+function rhymeFor(rng: Rng, group: string[]): Question {
   const [target, ...rest] = rng.shuffle(group);
   const answer = rng.pick(rest);
   const others = RHYME_GROUPS.filter((g) => g !== group).flat();
@@ -189,7 +241,11 @@ function rhyme(rng: Rng): Question {
 }
 
 function sightWord(rng: Rng): Question {
-  const word = rng.pick(SIGHT_WORDS);
+  return sightWordFor(rng, rng.pick(SIGHT_WORDS));
+}
+
+/** "Which one is spelled correctly?" for one specific sight word. */
+function sightWordFor(rng: Rng, word: string): Question {
   return makeChoice(rng, {
     instruction: 'Which one is spelled correctly?',
     prompt: '👀',
