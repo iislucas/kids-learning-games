@@ -40,6 +40,35 @@ const SCARF = '#e8484f';
 const DARK = '#3d2b1f';
 const PINK = '#ffb3b8';
 
+/**
+ * Soft gradients rather than flat fills.
+ *
+ * Flat shapes with an outline read as clip art. The same shapes with one light
+ * source — here, up and to the left — read as drawn, which is what the rest of
+ * the art now does and what the generation prompts now ask for. The gradients
+ * are declared once per sheet and referenced by every cell.
+ */
+const FUR_FILL = 'url(#fur)';
+const CREAM_FILL = 'url(#cream)';
+const SCARF_FILL = 'url(#scarf)';
+
+const SHEET_DEFS =
+  `<defs>` +
+  `<radialGradient id="fur" cx="36%" cy="26%" r="82%">` +
+  `<stop offset="0%" stop-color="#ffbc84"/>` +
+  `<stop offset="52%" stop-color="${FUR}"/>` +
+  `<stop offset="100%" stop-color="#c85f1c"/>` +
+  `</radialGradient>` +
+  `<radialGradient id="cream" cx="38%" cy="26%" r="86%">` +
+  `<stop offset="0%" stop-color="#fffdf7"/>` +
+  `<stop offset="100%" stop-color="#f6ddbe"/>` +
+  `</radialGradient>` +
+  `<linearGradient id="scarf" x1="0" y1="0" x2="0" y2="1">` +
+  `<stop offset="0%" stop-color="#ff6b6f"/>` +
+  `<stop offset="100%" stop-color="#c8353c"/>` +
+  `</linearGradient>` +
+  `</defs>`;
+
 type Eyes = 'open' | 'happy' | 'wide' | 'blink' | 'puzzled';
 type Mouth = 'smile' | 'bigOpen' | 'small' | 'oh' | 'grin';
 type Legs = 'stand' | 'jump' | 'kick';
@@ -152,10 +181,10 @@ function armSvg(side: 'l' | 'r', angle: number, thumbsUp: boolean): string {
   const paw = thumbsUp && side === 'r';
   return (
     `<g transform="rotate(${angle} ${shoulderX} ${shoulderY})">` +
-    `<rect x="${shoulderX - 7}" y="${shoulderY}" width="14" height="${length}" rx="7" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    `<circle cx="${shoulderX}" cy="${shoulderY + length}" r="8" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>` +
+    `<rect x="${shoulderX - 7}" y="${shoulderY}" width="14" height="${length}" rx="7" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>` +
+    `<circle cx="${shoulderX}" cy="${shoulderY + length}" r="8" fill="${CREAM_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>` +
     (paw
-      ? `<rect x="${shoulderX - 3}" y="${shoulderY + length + 4}" width="6" height="12" rx="3" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>`
+      ? `<rect x="${shoulderX - 3}" y="${shoulderY + length + 4}" width="6" height="12" rx="3" fill="${CREAM_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>`
       : '') +
     `</g>`
   );
@@ -164,8 +193,8 @@ function armSvg(side: 'l' | 'r', angle: number, thumbsUp: boolean): string {
 function legsSvg(kind: Legs): string {
   const leg = (x: number, angle: number, len: number) =>
     `<g transform="rotate(${angle} ${x} 164)">` +
-    `<rect x="${x - 8}" y="164" width="16" height="${len}" rx="8" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    `<ellipse cx="${x}" cy="${164 + len}" rx="11" ry="7" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>` +
+    `<rect x="${x - 8}" y="164" width="16" height="${len}" rx="8" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>` +
+    `<ellipse cx="${x}" cy="${164 + len}" rx="11" ry="7" fill="${CREAM_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>` +
     `</g>`;
 
   switch (kind) {
@@ -194,27 +223,27 @@ function characterSvg(pose: Pose): string {
   return (
     `<g transform="translate(0 ${pose.dy}) rotate(${pose.tilt} 100 140)">` +
     // Tail behind the body.
-    `<path d="M 132 148 Q 176 150 172 108 Q 168 132 140 130 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2" stroke-linejoin="round"/>` +
-    `<path d="M 170 118 Q 176 108 172 100 Q 164 110 164 122 Z" fill="${CREAM}"/>` +
+    `<path d="M 132 148 Q 176 150 172 108 Q 168 132 140 130 Z" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2" stroke-linejoin="round"/>` +
+    `<path d="M 170 118 Q 176 108 172 100 Q 164 110 164 122 Z" fill="${CREAM_FILL}"/>` +
     legsSvg(pose.legs) +
     // Body.
-    `<ellipse cx="100" cy="134" rx="38" ry="42" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
-    `<ellipse cx="100" cy="142" rx="23" ry="30" fill="${CREAM}"/>` +
+    `<ellipse cx="100" cy="134" rx="38" ry="42" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
+    `<ellipse cx="100" cy="142" rx="23" ry="30" fill="${CREAM_FILL}"/>` +
     // Arms sit in front of the body, otherwise the torso hides them entirely
     // and every pose reads as "standing still".
     armSvg('l', pose.armL, pose.thumbsUp) +
     armSvg('r', pose.armR, pose.thumbsUp) +
     // Scarf.
-    `<path d="M 70 110 Q 100 122 130 110 L 130 120 Q 100 132 70 120 Z" fill="${SCARF}"/>` +
-    `<path d="M 118 118 L 130 146 L 118 142 Z" fill="${SCARF}"/>` +
+    `<path d="M 70 110 Q 100 122 130 110 L 130 120 Q 100 132 70 120 Z" fill="${SCARF_FILL}"/>` +
+    `<path d="M 118 118 L 130 146 L 118 142 Z" fill="${SCARF_FILL}"/>` +
     // Ears.
-    `<path d="M 72 46 L 60 8 L 92 30 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
+    `<path d="M 72 46 L 60 8 L 92 30 Z" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
     `<path d="M 73 40 L 67 20 L 84 32 Z" fill="${PINK}"/>` +
-    `<path d="M 128 46 L 140 8 L 108 30 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
+    `<path d="M 128 46 L 140 8 L 108 30 Z" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
     `<path d="M 127 40 L 133 20 L 116 32 Z" fill="${PINK}"/>` +
     // Head.
-    `<circle cx="100" cy="72" r="40" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
-    `<ellipse cx="100" cy="86" rx="27" ry="19" fill="${CREAM}"/>` +
+    `<circle cx="100" cy="72" r="40" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
+    `<ellipse cx="100" cy="86" rx="27" ry="19" fill="${CREAM_FILL}"/>` +
     `<circle cx="72" cy="86" r="8" fill="${PINK}" opacity="0.55"/>` +
     `<circle cx="128" cy="86" r="8" fill="${PINK}" opacity="0.55"/>` +
     eyesSvg(pose.eyes) +
@@ -238,6 +267,7 @@ function sheetSvg(cells: { name: string; body: string }[], cols: number, rows: n
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!-- Generated by scripts/generate-default-media.ts - do not edit by hand. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="${cols * CELL}" height="${rows * CELL}" viewBox="0 0 ${cols * CELL} ${rows * CELL}">
+  ${SHEET_DEFS}
   ${placed}
 </svg>
 `;
@@ -296,8 +326,8 @@ function walkLegSvg(x: number, phase: number, sideOn: number): string {
   const length = 22 - lift * 0.6;
   return (
     `<g transform="translate(${stride} ${-lift})">` +
-    `<rect x="${x - 8}" y="164" width="16" height="${length}" rx="8" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>` +
-    `<ellipse cx="${x}" cy="${164 + length}" rx="11" ry="7" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="2"/>` +
+    `<rect x="${x - 8}" y="164" width="16" height="${length}" rx="8" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>` +
+    `<ellipse cx="${x}" cy="${164 + length}" rx="11" ry="7" fill="${CREAM_FILL}" stroke="${FUR_DARK}" stroke-width="2"/>` +
     `</g>`
   );
 }
@@ -317,8 +347,8 @@ function walkTailSvg(turn: number, phase: number, back: boolean): string {
   if (back) {
     return (
       `<g transform="rotate(${side * 16} ${x} 150)">` +
-      `<ellipse cx="${x}" cy="146" rx="21" ry="36" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
-      `<ellipse cx="${x}" cy="172" rx="14" ry="15" fill="${CREAM}"/>` +
+      `<ellipse cx="${x}" cy="146" rx="21" ry="36" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
+      `<ellipse cx="${x}" cy="172" rx="14" ry="15" fill="${CREAM_FILL}"/>` +
       `</g>`
     );
   }
@@ -326,8 +356,8 @@ function walkTailSvg(turn: number, phase: number, back: boolean): string {
   const tip = x + side * 26;
   return (
     `<path d="M ${x} 150 Q ${tip - side * 6} 152 ${tip} 106 Q ${tip - side * 10} 132 ${x + side * 8} 132 Z" ` +
-    `fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2" stroke-linejoin="round"/>` +
-    `<path d="M ${tip} 116 Q ${tip - side * 5} 106 ${tip + side * 2} 100 Q ${tip + side * 8} 110 ${tip + side * 6} 120 Z" fill="${CREAM}"/>`
+    `fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2" stroke-linejoin="round"/>` +
+    `<path d="M ${tip} 116 Q ${tip - side * 5} 106 ${tip + side * 2} 100 Q ${tip + side * 8} 110 ${tip + side * 6} 120 Z" fill="${CREAM_FILL}"/>`
   );
 }
 
@@ -342,7 +372,7 @@ function walkHeadSvg(turn: number, back: boolean): string {
   const ear = (side: -1 | 1) => {
     const base = cx + side * 28 - turn * 6;
     return (
-      `<path d="M ${base} 46 L ${base + side * 12} 8 L ${base - side * 20} 30 Z" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
+      `<path d="M ${base} 46 L ${base + side * 12} 8 L ${base - side * 20} 30 Z" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5" stroke-linejoin="round"/>` +
       (back
         ? ''
         : `<path d="M ${base - side * 1} 40 L ${base + side * 7} 20 L ${base - side * 10} 32 Z" fill="${PINK}"/>`)
@@ -350,7 +380,7 @@ function walkHeadSvg(turn: number, back: boolean): string {
   };
 
   const skull =
-    `<circle cx="${cx}" cy="72" r="40" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>`;
+    `<circle cx="${cx}" cy="72" r="40" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5"/>`;
 
   if (back) {
     return (
@@ -358,7 +388,7 @@ function walkHeadSvg(turn: number, back: boolean): string {
       ear(1) +
       skull +
       // A lick of paler fur, so the back of the head is not a plain disc.
-      `<path d="M ${cx - 16} 44 Q ${cx} 34 ${cx + 16} 44 Q ${cx} 54 ${cx - 16} 44 Z" fill="${CREAM}" opacity="0.7"/>`
+      `<path d="M ${cx - 16} 44 Q ${cx} 34 ${cx + 16} 44 Q ${cx} 54 ${cx - 16} 44 Z" fill="${CREAM_FILL}" opacity="0.7"/>`
     );
   }
 
@@ -379,9 +409,9 @@ function walkHeadSvg(turn: number, back: boolean): string {
     skull +
     // A snout poking out past the cheek is what makes the side views read.
     (turned > 0.5
-      ? `<ellipse cx="${cx + turn * 40}" cy="84" rx="${turned * 12}" ry="11" fill="${CREAM}" stroke="${FUR_DARK}" stroke-width="1.5"/>`
+      ? `<ellipse cx="${cx + turn * 40}" cy="84" rx="${turned * 12}" ry="11" fill="${CREAM_FILL}" stroke="${FUR_DARK}" stroke-width="1.5"/>`
       : '') +
-    `<ellipse cx="${muzzleX}" cy="86" rx="${27 - turned * 6}" ry="19" fill="${CREAM}"/>` +
+    `<ellipse cx="${muzzleX}" cy="86" rx="${27 - turned * 6}" ry="19" fill="${CREAM_FILL}"/>` +
     (turned < 0.9
       ? `<circle cx="${muzzleX - 26}" cy="86" r="7" fill="${PINK}" opacity="0.5"/>` +
         `<circle cx="${muzzleX + 26}" cy="86" r="7" fill="${PINK}" opacity="0.5"/>`
@@ -408,15 +438,15 @@ function walkCharacterSvg(
     (facing.back ? '' : tail) +
     walkLegSvg(86, phase, sideOn) +
     walkLegSvg(114, -phase, sideOn) +
-    `<ellipse cx="100" cy="134" rx="${38 - sideOn * 5}" ry="42" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
+    `<ellipse cx="100" cy="134" rx="${38 - sideOn * 5}" ry="42" fill="${FUR_FILL}" stroke="${FUR_DARK}" stroke-width="2.5"/>` +
     (facing.back
       ? ''
-      : `<ellipse cx="${100 + facing.turn * 6}" cy="142" rx="23" ry="30" fill="${CREAM}"/>`) +
+      : `<ellipse cx="${100 + facing.turn * 6}" cy="142" rx="23" ry="30" fill="${CREAM_FILL}"/>`) +
     // Arms swing opposite the legs.
     armSvg('l', 10 + phase * 26, false) +
     armSvg('r', -10 + phase * 26, false) +
-    `<path d="M 70 110 Q 100 122 130 110 L 130 120 Q 100 132 70 120 Z" fill="${SCARF}"/>` +
-    `<path d="M ${118 - facing.turn * 30} 118 L ${118 - facing.turn * 30} 146 L ${106 - facing.turn * 30} 142 Z" fill="${SCARF}"/>` +
+    `<path d="M 70 110 Q 100 122 130 110 L 130 120 Q 100 132 70 120 Z" fill="${SCARF_FILL}"/>` +
+    `<path d="M ${118 - facing.turn * 30} 118 L ${118 - facing.turn * 30} 146 L ${106 - facing.turn * 30} 142 Z" fill="${SCARF_FILL}"/>` +
     (facing.back ? tail : '') +
     walkHeadSvg(facing.turn, facing.back) +
     `</g>`

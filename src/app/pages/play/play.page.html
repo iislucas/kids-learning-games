@@ -160,12 +160,14 @@
         </div>
 
         <section class="stage">
-          <app-sprite-character
-            class="stage__character"
-            [character]="character()"
-            [animation]="animation()"
-            [size]="150"
-          />
+          <div class="stage__who">
+            <app-sprite-character
+              [character]="character()"
+              [animation]="animation()"
+              [size]="150"
+            />
+            <span class="stage__name">{{ characterName() }}</span>
+          </div>
 
           <div class="bubble" aria-live="polite">
             @if (snap.phase === 'asking') {
@@ -176,7 +178,15 @@
               } @else if (snap.question.instruction) {
                 <p class="bubble__instruction">{{ snap.question.instruction }}</p>
               }
-              <p class="bubble__prompt">{{ snap.question.prompt }}</p>
+              @if (questionPicture(); as picture) {
+                <img
+                  class="bubble__picture"
+                  [src]="picture"
+                  [attr.alt]="snap.question.instruction ?? 'The picture to answer'"
+                />
+              } @else {
+                <p class="bubble__prompt">{{ snap.question.prompt }}</p>
+              }
             } @else if (lastWasCorrect()) {
               @if (wasRetry()) {
                 <p class="bubble__prompt bubble__prompt--good">That's it! 🌟</p>

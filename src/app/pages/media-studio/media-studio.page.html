@@ -27,6 +27,15 @@
     <button
       type="button"
       role="tab"
+      [attr.aria-selected]="tab() === 'pictures'"
+      [class.tabs__on]="tab() === 'pictures'"
+      (click)="setTab('pictures')"
+    >
+      🖼️ Pictures
+    </button>
+    <button
+      type="button"
+      role="tab"
       [attr.aria-selected]="tab() === 'sounds'"
       [class.tabs__on]="tab() === 'sounds'"
       (click)="setTab('sounds')"
@@ -196,82 +205,158 @@
       <section class="card block">
         <h2>The map she walks around</h2>
         <p class="hint">
-          The game draws its own landscape, so this is optional. Generating one
-          repaints that same landscape as a picture — the clearings the
-          signposts stand in have to stay exactly where they are, which is why
-          the model is handed the sketch below rather than only words.
+          The game draws its own landscape, so this is all optional. It is built
+          from a repeating tile per kind of ground and a sprite per kind of
+          scenery, so each piece can be replaced on its own — and one tree is
+          something an image model gets right, where a whole map is not.
         </p>
+
+        <img class="rawimage" [src]="mapPlan()" alt="A plan of the whole map" />
 
         @if (!hasGemini()) {
           <p class="hint">
-            Add a Gemini API key on the <strong>Keys</strong> tab to generate a
-            landscape.
+            Add a Gemini API key on the <strong>Keys</strong> tab to generate
+            any of this.
           </p>
         }
 
-        <h3>The sketch it is given</h3>
-        <img class="rawimage" [src]="mapSketch()" alt="A sketch of the map layout" />
-
         <label class="field">
-          <span>What should it look like?</span>
+          <span>What should it all look like?</span>
           <textarea
-            rows="2"
+            rows="3"
             [value]="mapStyle()"
             (input)="mapStyle.set($any($event.target).value)"
           ></textarea>
         </label>
 
-        <details class="details">
-          <summary>See the full prompt that gets sent</summary>
-          <pre>{{ mapPrompt() }}</pre>
-        </details>
+        @if (hasGeneratedMapArt()) {
+          <div class="actions">
+            <button class="btn btn--ghost" type="button" (click)="clearMapArt()">
+              Back to the drawn landscape
+            </button>
+          </div>
+        }
+      </section>
+
+      <section class="card block">
+        <h2>The ground</h2>
+        <p class="hint">
+          Each of these repeats to fill its part of the map, so the thing to
+          check is the edges: a tile that does not join up turns into a grid.
+        </p>
+        <ul class="artgrid">
+          @for (row of tileRows(); track row.id) {
+            <li class="artgrid__item">
+              <img class="artgrid__tile" [src]="row.src" [alt]="row.id + ' ground'" />
+              <strong>{{ row.id }}</strong>
+              <span class="hint">{{ row.description }}</span>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!hasGemini() || !!busy()"
+                (click)="generateTile(row.id)"
+              >
+                {{ row.generated ? 'Make another' : 'Make it' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="card block">
+        <h2>The scenery</h2>
+        <p class="hint">
+          One object each, on a plain background — the background is cut away
+          afterwards so they can stand on any ground.
+        </p>
+        <ul class="artgrid">
+          @for (row of propRows(); track row.id) {
+            <li class="artgrid__item">
+              <img class="artgrid__prop" [src]="row.src" [alt]="row.id" />
+              <strong>{{ row.id }}</strong>
+              <span class="hint">{{ row.description }}</span>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!hasGemini() || !!busy()"
+                (click)="generateProp(row.id)"
+              >
+                {{ row.generated ? 'Make another' : 'Make it' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+    @case ('pictures') {
+      <section class="card block">
+        <h2>Pictures for the spelling questions</h2>
+        <p class="hint">
+          Spelling asks "how do you write this?", so the picture is the whole
+          question. Until one is drawn the game shows an emoji, which is a poor
+          clue — several words share one, and some are ambiguous.
+          {{ pictureCount() }} of {{ pictureRows().length }} drawn.
+        </p>
+
+        @if (!hasGemini()) {
+          <p class="hint">
+            Add a Gemini API key on the <strong>Keys</strong> tab to draw them.
+          </p>
+        }
+
+        <label class="field">
+          <span>What should they look like?</span>
+          <textarea
+            rows="2"
+            [value]="pictureStyle()"
+            (input)="pictureStyle.set($any($event.target).value)"
+          ></textarea>
+        </label>
 
         <div class="actions">
           <button
             class="btn"
             type="button"
-            [disabled]="!hasGemini() || !!busy()"
-            (click)="generateMap()"
+            [disabled]="!hasGemini() || !!busy() || pictureCount() === pictureRows().length"
+            (click)="generateMissingPictures()"
           >
-            Paint the landscape ✨
+            Draw the {{ pictureRows().length - pictureCount() }} missing ones ✨
           </button>
-          @if (savedMap()) {
+          @if (pictureCount() > 0) {
             <button
               class="btn btn--ghost"
               type="button"
               [disabled]="!!busy()"
-              (click)="clearMap()"
+              (click)="clearPictures()"
             >
-              Back to the drawn one
+              Remove them all
             </button>
           }
         </div>
       </section>
 
-      @if (generatedMap(); as painted) {
-        <section class="card block">
-          <h2>What came back</h2>
-          <p class="hint">
-            About {{ generatedMapSize() }} kB once saved. Check the pale circles
-            still line up with where the signposts go — if the model has moved
-            them, paint it again.
-          </p>
-          <img class="rawimage" [src]="painted" alt="The generated landscape" />
-          <div class="actions">
-            <button class="btn" type="button" (click)="saveMap()">
-              Use this landscape
-            </button>
-            <button
-              class="btn btn--ghost"
-              type="button"
-              [disabled]="!!busy()"
-              (click)="generateMap()"
-            >
-              Paint another
-            </button>
-          </div>
-        </section>
-      }
+      <section class="card block">
+        <ul class="artgrid">
+          @for (row of pictureRows(); track row.id) {
+            <li class="artgrid__item">
+              @if (row.src) {
+                <img class="artgrid__prop" [src]="row.src" [alt]="row.label" />
+              } @else {
+                <span class="artgrid__empty" aria-hidden="true">?</span>
+              }
+              <strong>{{ row.label }}</strong>
+              <button
+                class="btn btn--ghost"
+                type="button"
+                [disabled]="!hasGemini() || !!busy()"
+                (click)="generatePicture(row)"
+              >
+                {{ row.src ? 'Redraw' : 'Draw it' }}
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
     }
     @case ('sounds') {
       <section class="card block">

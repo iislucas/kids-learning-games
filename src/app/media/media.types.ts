@@ -99,10 +99,33 @@ export interface MediaPack {
   sounds: Partial<Record<SoundId, SoundDef>>;
   /** Looping background music, or null for none. */
   music: SoundDef | null;
+  /** Generated art for the exploration map. */
+  map?: MapMedia | null;
   /**
-   * A generated painting for the exploration map. Optional: with none, the map
-   * draws its own landscape from `explore/map-art.ts`, which is what a fresh
-   * clone with no API keys gets.
+   * Pictures for questions that have one, keyed by the question's `picture`.
+   * A spelling round shows the thing being spelled; a picture is a far better
+   * clue than an emoji, and for a word she cannot read yet it is the only clue.
    */
-  map?: { src: string } | null;
+  pictures?: Partial<Record<string, ImageDef>>;
+}
+
+export interface ImageDef {
+  /** Asset path or `data:` URI. */
+  src: string;
+}
+
+/**
+ * The map's art, generated piece by piece.
+ *
+ * Tiles and props rather than one painting: each is small enough to store, a
+ * tile repeats to fill any region without regenerating, and an image model
+ * asked for one tree gets one tree right. `background` is the older
+ * whole-map painting; when present it covers everything else.
+ */
+export interface MapMedia {
+  background?: ImageDef | null;
+  /** Seamless ground textures, keyed by terrain. */
+  tiles?: Partial<Record<string, ImageDef>>;
+  /** Scenery sprites, keyed by prop kind. */
+  props?: Partial<Record<string, ImageDef>>;
 }

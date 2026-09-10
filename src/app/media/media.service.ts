@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { readJson, removeKey, writeJson } from '../core/stored-signal';
 import { defaultMediaPack } from './default-pack';
-import { CharacterDef, MediaPack, SoundDef, SoundId } from './media.types';
+import { CharacterDef, ImageDef, MediaPack, SoundDef, SoundId } from './media.types';
 
 const STORAGE_KEY = 'klg.mediaPack';
 
@@ -87,9 +87,55 @@ export class MediaService {
     this.update((pack) => ({ ...pack, music }));
   }
 
-  /** The generated landscape, or null to fall back to the drawn one. */
-  setMap(map: { src: string } | null): void {
-    this.update((pack) => ({ ...pack, map }));
+  // ── Map art ────────────────────────────────────────────────────────────────
+
+  readonly map = computed(() => this.pack().map ?? {});
+
+  /** A whole-map painting, or null to fall back to tiles and props. */
+  setMapBackground(background: ImageDef | null): void {
+    this.update((pack) => ({ ...pack, map: { ...pack.map, background } }));
+  }
+
+  setMapTile(terrain: string, tile: ImageDef | null): void {
+    this.update((pack) => ({
+      ...pack,
+      map: { ...pack.map, tiles: withEntry(pack.map?.tiles, terrain, tile) },
+    }));
+  }
+
+  setMapProp(kind: string, prop: ImageDef | null): void {
+    this.update((pack) => ({
+      ...pack,
+      map: { ...pack.map, props: withEntry(pack.map?.props, kind, prop) },
+    }));
+  }
+
+  mapTile(terrain: string): string | undefined {
+    return this.map().tiles?.[terrain]?.src;
+  }
+
+  mapProp(kind: string): string | undefined {
+    return this.map().props?.[kind]?.src;
+  }
+
+  /** Everything generated for the map thrown away, back to the drawn one. */
+  clearMap(): void {
+    this.update((pack) => ({ ...pack, map: null }));
+  }
+
+  // ── Question pictures ──────────────────────────────────────────────────────
+
+  readonly pictures = computed(() => this.pack().pictures ?? {});
+
+  picture(id: string): string | undefined {
+    return this.pictures()[id]?.src;
+  }
+
+  setPicture(id: string, picture: ImageDef | null): void {
+    this.update((pack) => ({
+      ...pack,
+      pictures: withEntry(pack.pictures, id, picture) ?? {},
+    }));
   }
 
   resetToDefaults(): void {
@@ -108,4 +154,19 @@ export class MediaService {
     }
     this.saveOverride(parsed);
   }
+}
+
+/**
+ * Sets or removes one entry in an optional record, returning undefined once it
+ * is empty so an untouched pack does not carry an empty object around.
+ */
+function withEntry(
+  record: Partial<Record<string, ImageDef>> | undefined,
+  key: string,
+  value: ImageDef | null,
+): Partial<Record<string, ImageDef>> | undefined {
+  const next = { ...(record ?? {}) };
+  if (value) next[key] = value;
+  else delete next[key];
+  return Object.keys(next).length > 0 ? next : undefined;
 }

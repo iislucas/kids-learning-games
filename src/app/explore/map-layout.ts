@@ -13,8 +13,8 @@ import { ALL_CHALLENGES, ChallengeRef } from '../quiz/challenges';
  * directly and Node only strips types rather than compiling them.
  */
 
-export const MAP_WIDTH = 1600;
-export const MAP_HEIGHT = 1100;
+export const MAP_WIDTH = 1700;
+export const MAP_HEIGHT = 1400;
 
 /** How far from a spot counts as standing on it. */
 export const SPOT_RADIUS = 54;
@@ -31,7 +31,7 @@ export interface MapRegion {
   rx: number;
   ry: number;
   /** Terrain the art should draw here. */
-  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills';
+  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves';
 }
 
 export interface MapSpot {
@@ -53,9 +53,8 @@ export interface MapLayout {
 }
 
 /**
- * The four lands, arranged so the two biggest — the times tables and the adding
- * families — sit either side of the start, and nothing needs a scroll of more
- * than one screen to reach from its neighbour.
+ * The six lands, in two columns around a crossroads, so every region is a short
+ * walk from where she starts and the three maths regions sit together.
  */
 interface RegionPlan extends Omit<MapRegion, 'packId'> {
   packId: string;
@@ -73,10 +72,10 @@ const REGION_PLANS: RegionPlan[] = [
     name: 'Times Table Hills',
     emoji: '✖️',
     colour: '#4f8ff7',
-    cx: 400,
-    cy: 260,
-    rx: 370,
-    ry: 220,
+    cx: 440,
+    cy: 250,
+    rx: 390,
+    ry: 210,
     terrain: 'hills',
     perRow: 4,
   },
@@ -87,11 +86,25 @@ const REGION_PLANS: RegionPlan[] = [
     name: 'Adding Ponds',
     emoji: '➕',
     colour: '#3fb6d8',
-    cx: 1180,
-    cy: 260,
-    rx: 350,
-    ry: 220,
+    cx: 1270,
+    cy: 250,
+    rx: 380,
+    ry: 210,
     terrain: 'water',
+    perRow: 4,
+  },
+  {
+    id: 'subtracting',
+    packId: 'maths',
+    prefix: 'maths.sub.',
+    name: 'Take-Away Caves',
+    emoji: '➖',
+    colour: '#9a7bd8',
+    cx: 440,
+    cy: 720,
+    rx: 380,
+    ry: 200,
+    terrain: 'caves',
     perRow: 4,
   },
   {
@@ -101,9 +114,9 @@ const REGION_PLANS: RegionPlan[] = [
     name: 'Word Wood',
     emoji: '📚',
     colour: '#e8484f',
-    cx: 320,
-    cy: 830,
-    rx: 290,
+    cx: 1270,
+    cy: 720,
+    rx: 330,
     ry: 200,
     terrain: 'forest',
     perRow: 3,
@@ -115,9 +128,9 @@ const REGION_PLANS: RegionPlan[] = [
     name: 'Petit Village',
     emoji: '🇫🇷',
     colour: '#7a5cf0',
-    cx: 830,
-    cy: 850,
-    rx: 250,
+    cx: 470,
+    cy: 1160,
+    rx: 300,
     ry: 190,
     terrain: 'village',
     perRow: 3,
@@ -129,10 +142,10 @@ const REGION_PLANS: RegionPlan[] = [
     name: 'Wonder Meadow',
     emoji: '🔬',
     colour: '#1fa97a',
-    cx: 1330,
-    cy: 830,
-    rx: 220,
-    ry: 190,
+    cx: 1270,
+    cy: 1160,
+    rx: 280,
+    ry: 185,
     terrain: 'meadow',
     perRow: 2,
   },
@@ -164,7 +177,9 @@ function placeSpots(plan: RegionPlan, refs: ChallengeRef[]): MapSpot[] {
       regionId: plan.id,
       index,
       x: Math.round(plan.cx + spread(position, inRow) * plan.rx * 0.62),
-      y: Math.round(plan.cy + spread(row, rows) * plan.ry * 0.5),
+      // The same inset vertically. Any tighter and three rows of spots come
+      // closer together than two signposts can be tapped apart.
+      y: Math.round(plan.cy + spread(row, rows) * plan.ry * 0.6),
     };
   });
 }
@@ -188,7 +203,9 @@ export function buildMapLayout(): MapLayout {
     height: MAP_HEIGHT,
     regions,
     spots,
-    start: { x: Math.round(MAP_WIDTH / 2), y: 560 },
+    // The crossroads: the gap between all four quarters, so every region is a
+    // short walk from where she starts.
+    start: { x: 870, y: 490 },
   };
 }
 

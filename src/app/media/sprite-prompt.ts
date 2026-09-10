@@ -38,9 +38,19 @@ export interface SpritePromptOptions {
   rows?: number;
 }
 
+/**
+ * The house style.
+ *
+ * Anime and manga rather than flat vector art: soft colour gradients and a
+ * painted light source. Asking for "flat colours" and "bold outlines" gets
+ * pictures that look like clip art, which sit badly next to a landscape drawn
+ * with gradients — and children's picture books have not looked like clip art
+ * for a very long time.
+ */
 export const DEFAULT_STYLE =
-  'bright friendly modern cartoon style for young children, bold clean outlines, ' +
-  'flat cheerful colours, simple shapes, no text';
+  'soft anime and manga illustration for young children, gentle colour ' +
+  'gradients and painted light, delicate line work, rounded friendly shapes, ' +
+  'warm and cheerful, no harsh flat vector fills, no text';
 
 export function buildSpriteSheetPrompt(options: SpritePromptOptions): string {
   const cols = options.cols ?? 4;
@@ -105,37 +115,43 @@ export function buildSingleImagePrompt(subject: string, style?: string): string 
 }
 
 /**
- * The prompt for the explorable landscape.
+ * A seamless ground tile.
  *
- * It goes out with the sketch (see `map-art.ts`) as an image-to-image edit, so
- * most of its work is *restraint*: the numbered circles are where the signposts
- * will stand, and a beautiful painting that moves them by fifty pixels is
- * useless. Naming each numbered place lets the model put something thematically
- * right there instead of generic scenery.
+ * Every rule here is about the edges. A tile is repeated across a whole region,
+ * so any border, vignette, single large feature or lighting that falls off
+ * towards one side turns into an obvious grid the moment it is tiled — which
+ * matters far more than how pretty the texture is on its own.
  */
-export function buildMapPrompt(
-  places: { number: number; name: string; region: string }[],
-  regions: { name: string; terrain: string }[],
-  style?: string,
-): string {
+export function buildTilePrompt(subject: string, style?: string): string {
   return [
-    'Repaint this sketch as a beautiful top-down storybook map for a childrens game.',
-    '',
-    'THE AREAS, which must stay exactly where the coloured shapes are:',
-    ...regions.map((region) => `- ${region.name}: draw it as ${region.terrain}.`),
-    '',
-    'THE MARKED PLACES. Each numbered circle is a clearing where a signpost will stand:',
-    ...places.map(
-      (place) => `${place.number}. ${place.name} — in ${place.region}.`,
-    ),
+    `A seamless repeating texture of ${subject}, seen from directly above.`,
+    `STYLE: ${style?.trim() || DEFAULT_STYLE}.`,
     '',
     'CRITICAL RULES:',
-    '- Keep every numbered circle at EXACTLY the position and size it has in the sketch.',
-    '- Leave each of those circles as an open, pale, empty clearing. Nothing may be drawn inside them; a signpost is placed on top of each one afterwards.',
-    '- Keep the winding paths that join the circles.',
-    '- Do not move, resize, add or remove any area or any circle.',
-    '- Absolutely no text, no numbers, no labels, no legend, no watermark. The numbers in the sketch are instructions to you, not something to draw.',
-    '- Fill the whole rectangle, edge to edge, with no border or frame.',
-    `STYLE: ${style?.trim() || DEFAULT_STYLE}, seen from directly above, warm and inviting.`,
+    '- The texture must TILE SEAMLESSLY: what runs off the left edge continues on the right, and the same top to bottom.',
+    '- Completely even lighting across the whole square. No vignette, no shadow at one side, no highlight in the middle.',
+    '- Small, evenly spread detail only. No single large object, no focal point, nothing that would obviously repeat.',
+    '- Fill the entire square, edge to edge. No border, no frame, no margin.',
+    '- No text, no watermark, no signature.',
+  ].join('\n');
+}
+
+/**
+ * One scenery sprite.
+ *
+ * The background has to be flat and plain because it is cut away afterwards by
+ * the same analysis the sprite sheet uses — a scene behind the object makes
+ * that impossible, and the prop arrives sitting in a box.
+ */
+export function buildPropPrompt(subject: string, style?: string): string {
+  return [
+    `${subject}, seen from slightly above, standing upright, complete and whole.`,
+    `STYLE: ${style?.trim() || DEFAULT_STYLE}.`,
+    '',
+    'CRITICAL RULES:',
+    '- Exactly ONE object, centred, with a generous empty margin all around it.',
+    '- Plain, completely flat, uniform pure white background. No scenery, no ground, no horizon, no shadow on the ground, no gradient behind it.',
+    '- High contrast between the object and the background.',
+    '- No text, no labels, no watermark, no border, no frame.',
   ].join('\n');
 }

@@ -199,3 +199,58 @@ code {
   border-radius: 6px;
   font-size: 0.9em;
 }
+
+/* The map pieces and the question pictures: a grid of one-thing-each cards. */
+.artgrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.artgrid__item {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.6);
+  text-align: center;
+
+  .btn {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 0.85rem;
+  }
+
+  .hint {
+    font-size: 0.75rem;
+  }
+}
+
+.artgrid__tile {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.artgrid__prop,
+.artgrid__empty {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+}
+
+.artgrid__empty {
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  font-size: 1.6rem;
+  font-weight: 800;
+}

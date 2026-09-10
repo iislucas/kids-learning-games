@@ -55,12 +55,24 @@ are declared once in [`app.config.ts`](src/app/app.config.ts):
 
 ```ts
 export const initPathPatterns = {
+  [Views.Map]: addUrlParams(pathPattern``, [{ name: 'at' as const, default: '' }]),
+  [Views.Home]: pathPattern`games`,
   [Views.Play]: addUrlParams(pathPattern`play/${pv('packId')}`, [
     { name: 'level' as const, default: '1' },
+    { name: 'challenge' as const, default: '' },
   ]),
   ...
 };
 ```
+
+**The map is the front door**; the list of games lives at `/games`.
+
+One trap worth knowing: `hrefForView` carries the pattern's *current* url params
+across, so its result often already has a query string on it. Adding another
+parameter by hand produces `play/maths?level=2?challenge=x`, where everything
+after the second `?` is swallowed into the first value — which looks like the
+app ignoring the link rather than like a malformed URL. Use
+[`withParam`](src/app/routing/routing.utils.ts) instead of concatenating.
 
 Path variables and query params become typed `WritableSignal<string>`s, bound
 two-way to the URL. Writing `levelParam.set('2')` updates the address bar;
@@ -174,22 +186,43 @@ something.
 
 Challenges are declared on the pack that owns their content
 ([`Challenge`](src/app/quiz/question.types.ts)) and flattened into a registry by
-[`challenges.ts`](src/app/quiz/challenges.ts). There are 37: the eleven times
-tables, the ten adding families, the three word bands plus sight words and
-rhymes, the five French topics plus numbers, and the four quiz topics. One is
-played with `?challenge=<id>` on the play screen; `QuizSession` takes the deck
-instead of generating, and the round is as long as the deck.
+[`challenges.ts`](src/app/quiz/challenges.ts). There are 47: the eleven times
+tables, the ten adding families, the ten take-away families, the three word
+bands plus sight words and rhymes, the five French topics plus numbers, and the
+four quiz topics. One is played with `?challenge=<id>` on the play screen;
+`QuizSession` takes the deck instead of generating, and the round is as long as
+the deck.
+
+A take-away family is the exact inverse of its adding family — `n + b` becomes
+`(n + b) − n`, so both have the answers 1–10 and can be practised against each
+other, which is how subtraction is taught at this age.
 
 A challenge gated on an option value **closes when that value is switched off**,
 the same rule as `isLevelAvailable` applied to a single value: turning the 8×
 table off has to close its place on the map too, or the switch would be a lie.
 The spot stays on the map, struck through, saying which setting closed it.
 
-### The map (`/map`)
+### The map (`/`)
 
-The 37 challenges are laid out as places in a landscape the fox walks around in
-eight directions, tapped, steered with the arrow keys, or nudged with the
-on-screen pad. Badges are shown on the signpost where they were won.
+The 47 challenges are places in a landscape the fox walks around in eight
+directions. **Tapping is the whole interface** — tap the ground and she walks
+there, tap a place and she walks to it and it opens. Arrow keys and WASD work
+too, for a laptop.
+
+Three things make the map the collection screen as well as the menu:
+
+- **What she has built at each place** shows how far in she is: an empty
+  signpost, then walls up, then the finished thing with a flag or a beacon.
+  Each region builds something of its own — a jetty and a boat on the ponds, a
+  treehouse in the wood, a cairn on the hills — so a finished place is
+  recognisable from across the map. See
+  [`spot-build.ts`](src/app/explore/spot-build.ts).
+- **Prizes sit where they were won.** They unlock on a cumulative star total,
+  which knows nothing about place, so the place is recorded as it happens
+  (`prizePlaces` in [`progress.service.ts`](src/app/core/progress.service.ts)).
+  Anything won before that was recorded gathers at the crossroads.
+- **A closed place stays on the map**, struck through, naming the setting that
+  closed it.
 
 Three files, all pure and Angular-free:
 
@@ -199,18 +232,34 @@ Three files, all pure and Angular-free:
 - [`explorer.ts`](src/app/explore/explorer.ts) — `directionFor` (eight 45°
   wedges, screen coordinates so north is negative y) and `stepToward`, which
   never overshoots on a long frame.
-- [`map-art.ts`](src/app/explore/map-art.ts) — the landscape itself.
+- [`map-art.ts`](src/app/explore/map-art.ts) — the tiles, the props and the
+  labelled sketch.
 
 The walk is driven by `requestAnimationFrame`, which the global
 `prefers-reduced-motion` rule in `styles.scss` cannot reach, so the map checks
 `matchMedia` itself and has her arrive instead of travel.
 
-`map-art.ts` draws **the same picture twice**: unlabelled it is the background
-the game uses, and labelled — flat colours, a numbered circle per spot, region
-names — it is the sketch handed to the image model. One function, so the art and
-the tappable spots cannot drift apart. There is deliberately no committed map
-asset: it is built at runtime from the layout, so a new challenge needs no
-regenerated file.
+### How the landscape is drawn
+
+**Tiles and sprites, not one big picture.** Each region is a patch of ground
+filled with a seamless 256px tile, with props — trees, boulders, cottages,
+ponds — scattered over it at positions derived from the layout. Three reasons:
+
+- Every piece can be replaced on its own by a generated image, and a tile plus a
+  handful of sprites is a fraction of the bytes of a 1700×1400 painting, which
+  matters when the media pack lives in `localStorage`.
+- A tile repeats to fill any area, so moving or adding a region needs no art
+  regenerated.
+- An image model asked for one tree gets one tree right. Asked for a whole map
+  with forty-seven clearings in exact positions, it does not.
+
+The seamlessness comes from drawing every mark at all nine wrap offsets and
+clipping to the tile, so anything running off one edge is already arriving at
+the opposite one. Without that, every tile boundary shows as a hard line — which
+on a repeating background is the first thing the eye finds.
+
+There is deliberately no committed map asset: it is all built at runtime from
+the layout, so a new challenge needs no regenerated file.
 
 ### Prizes
 
@@ -254,7 +303,8 @@ Generates replacements using your own API keys:
 | What | Service | Key |
 | --- | --- | --- |
 | Character sprite sheet | Gemini `gemini-2.5-flash-image` | Gemini |
-| Map landscape (from a sketch) | Gemini `gemini-2.5-flash-image` | Gemini |
+| Map ground tiles and scenery sprites | Gemini `gemini-2.5-flash-image` | Gemini |
+| Pictures for the spelling questions | Gemini `gemini-2.5-flash-image` | Gemini |
 | Sound effects | ElevenLabs `/v1/sound-generation` | ElevenLabs |
 | Music loop | Gemini Lyria RealTime | Gemini |
 
@@ -312,15 +362,34 @@ does that work instead.
 
 ### The landscape (`/media`, Landscape tab)
 
-Generating the map background is image-to-image: the labelled sketch from
-`map-art.ts` goes to Gemini alongside a prompt that names every numbered place
-and insists the circles stay exactly where they are and stay empty, because a
-signpost is placed on each one afterwards. Handing over the same geometry the
-game uses is the only reliable way to get a painting that lines up.
+The map's art is generated a piece at a time: one seamless tile per kind of
+ground, one sprite per kind of scenery. Anything not generated falls back to the
+drawn version, so a half-finished pack still looks like a landscape.
 
-What comes back is rescaled to the map's own size as a JPEG before it is
-stored — a full-size PNG data URI trips the `localStorage` quota that
-`saveOverride` guards. Clearing it returns to the drawn landscape.
+The prompts do most of the work, and both are mostly about constraints. A tile
+must **tile** — so it asks for even lighting, no vignette, no focal point and no
+border, because any of those turn into a visible grid the moment it repeats. A
+prop must sit on whatever ground it lands on — so it asks for one object on a
+flat plain background, which is then cut away to transparency by the same
+median-of-the-border analysis the sprite sheet uses
+([`cutOutSubject`](src/app/media/raster.ts)).
+
+Everything is rescaled before storing: a full-size PNG data URI trips the
+`localStorage` quota that `saveOverride` guards.
+
+### Question pictures (`/media`, Pictures tab)
+
+The spelling round asks "how do you write this?", so the picture *is* the
+question — and an emoji is a poor stand-in, since several words share one and
+some are ambiguous (`☂️` is as much *rain* as *umbrella*). A question can name a
+`picture`, and the media pack holds a drawing for it; without one the emoji
+still shows.
+
+The list of pictures to draw is *discovered* rather than written down: every
+pack is asked for a pile of questions and the ones naming a picture are
+collected ([`pictures.ts`](src/app/quiz/pictures.ts)). A word added to a pack
+therefore appears in the studio to be drawn, with no second list to keep in
+step.
 
 ---
 

@@ -75,6 +75,18 @@ const MATHS_CHALLENGES: Challenge[] = [
     deck: (rng: Rng) =>
       rng.shuffle(FACT_RANGE).map((b) => additionFact(rng, n, b)),
   })),
+  // The exact inverse of the adding family: `n + b` becomes `(n + b) − n`, so
+  // the answers are the same 1…10 and the pair can be practised against each
+  // other. That is how taking away is taught at this age — as adding undone.
+  ...FACT_RANGE.map((n): Challenge => ({
+    id: `maths.sub.${n}`,
+    name: `Taking away ${n}`,
+    short: `−${n}`,
+    emoji: '➖',
+    goal: `Get all ${FACTS_PER_FAMILY} right!`,
+    deck: (rng: Rng) =>
+      rng.shuffle(FACT_RANGE).map((b) => subtractionFact(rng, n + b, n)),
+  })),
 ];
 
 /**
@@ -169,7 +181,11 @@ function additionFact(rng: Rng, a: number, b: number): Question {
 function subtraction(rng: Rng, max: number): Question {
   // Pick the larger number first so the answer is never negative.
   const a = rng.int(3, max);
-  const b = rng.int(1, a);
+  return subtractionFact(rng, a, rng.int(1, a));
+}
+
+/** One specific take-away, `a − b`. */
+function subtractionFact(rng: Rng, a: number, b: number): Question {
   const answer = a - b;
   return makeChoice(rng, {
     prompt: `${a} − ${b} = ?`,

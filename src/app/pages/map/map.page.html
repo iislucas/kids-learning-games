@@ -1,16 +1,47 @@
 <div class="explore">
   <header class="explore__bar">
+    <span class="explore__title">
+      <span aria-hidden="true">🗺️</span>
+      <span>
+        <strong>Explore</strong>
+        <span class="hint">{{ earnedCount() }} of {{ totalBadges() }} badges</span>
+      </span>
+    </span>
+
     <a
-      class="explore__back"
+      class="pill"
+      [href]="prizesHref()"
+      (click)="go($event, prizesHref())"
+      aria-label="Stars earned. Go to prizes."
+    >
+      <span aria-hidden="true">⭐</span><strong>{{ stars() }}</strong>
+    </a>
+
+    <button
+      class="pill pill--icon"
+      type="button"
+      (click)="toggleSounds()"
+      [attr.aria-pressed]="soundsOn()"
+      [attr.aria-label]="soundsOn() ? 'Turn sound off' : 'Turn sound on'"
+    >
+      {{ soundsOn() ? '🔊' : '🔇' }}
+    </button>
+
+    <a
+      class="pill pill--icon"
       [href]="homeHref()"
       (click)="go($event, homeHref())"
-      aria-label="Back to the games"
-      >✕</a
+      aria-label="All the games"
+      >🎮</a
     >
-    <div class="explore__title">
-      <strong>🗺️ Explore</strong>
-      <span class="hint">{{ earnedCount() }} of {{ totalBadges() }} badges</span>
-    </div>
+
+    <a
+      class="pill pill--icon"
+      [href]="settingsHref()"
+      (click)="go($event, settingsHref())"
+      aria-label="Settings"
+      >⚙️</a
+    >
   </header>
 
   <div
@@ -18,33 +49,97 @@
     #viewport
     tabindex="0"
     role="application"
-    aria-label="A map to walk around. Use the arrow keys to move."
+    aria-label="A map to walk around. Tap where you want to go, or use the arrow keys."
     (keydown)="onKeyDown($event)"
   >
     <div
       class="world"
+      [class.world--painted]="!!painting()"
       [style.width.px]="mapWidth"
       [style.height.px]="mapHeight"
-      [style.background-image]="background()"
+      [style.background-image]="paintingUrl()"
       (click)="onMapClick($event)"
     >
+      @if (!painting()) {
+        @for (view of regions(); track view.region.id) {
+          <!-- The ground: one tiled patch per region, clipped to its ellipse. -->
+          <div
+            class="ground"
+            [style.left.px]="view.region.cx - view.region.rx"
+            [style.top.px]="view.region.cy - view.region.ry"
+            [style.width.px]="view.region.rx * 2"
+            [style.height.px]="view.region.ry * 2"
+            [style.background-image]="view.tile"
+            [style.--edge]="view.region.colour"
+          ></div>
+        }
+      }
+
+      <!-- The tracks between the clearings, all in one overlay. -->
+      <svg
+        class="tracks"
+        [attr.viewBox]="'0 0 ' + mapWidth + ' ' + mapHeight"
+        [attr.width]="mapWidth"
+        [attr.height]="mapHeight"
+        aria-hidden="true"
+      >
+        @for (view of regions(); track view.region.id) {
+          @if (view.track) {
+            <path class="tracks__edge" [attr.d]="view.track" />
+            <path class="tracks__path" [attr.d]="view.track" />
+          }
+        }
+      </svg>
+
+      @if (!painting()) {
+        @for (view of regions(); track view.region.id) {
+          @for (prop of view.props; track prop.id) {
+            <img
+              class="prop"
+              [src]="prop.src"
+              alt=""
+              aria-hidden="true"
+              [style.left.px]="prop.x"
+              [style.top.px]="prop.y"
+              [style.width.px]="prop.size"
+              [style.transform]="
+                'translate(-50%, -86%)' + (prop.flipped ? ' scaleX(-1)' : '')
+              "
+            />
+          }
+        }
+      }
+
       @for (region of layout.regions; track region.id) {
         <span
           class="region"
           [style.left.px]="region.cx"
-          [style.top.px]="region.cy - region.ry + 34"
+          [style.top.px]="region.cy - region.ry + 30"
           [style.--region]="region.colour"
         >
           <span aria-hidden="true">{{ region.emoji }}</span> {{ region.name }}
         </span>
       }
 
+      <!-- Prizes sit where they were won. -->
+      @for (won of placedPrizes(); track won.prize.id) {
+        <span
+          class="prize"
+          [style.left.px]="won.x"
+          [style.top.px]="won.y"
+          [attr.title]="won.prize.name"
+          [attr.aria-label]="'Prize won here: ' + won.prize.name"
+          >{{ won.prize.emoji }}</span
+        >
+      }
+
       @for (view of spots(); track view.spot.challengeId) {
         <button
-          class="signpost"
+          class="place"
           type="button"
-          [class.signpost--closed]="!view.available"
-          [class.signpost--open]="openSpot()?.spot?.challengeId === view.spot.challengeId"
+          [class.place--closed]="!view.available"
+          [class.place--open]="openSpot()?.spot?.challengeId === view.spot.challengeId"
+          [class.place--finished]="view.stage === 'finished'"
           [style.left.px]="view.spot.x"
           [style.top.px]="view.spot.y"
           [attr.aria-label]="
@@ -56,16 +151,8 @@
           "
           (click)="goToSpot($event, view)"
         >
-          <span class="signpost__label">{{ view.ref.challenge.short }}</span>
-          <span class="signpost__badges" aria-hidden="true">
-            @for (badge of badges; track badge.id) {
-              <span
-                class="signpost__badge"
-                [class.signpost__badge--won]="hasBadge(view, badge.id)"
-                >{{ badge.emoji }}</span
-              >
-            }
-          </span>
+          <img class="place__build" [src]="view.build" alt="" aria-hidden="true" />
+          <span class="place__label">{{ view.ref.challenge.short }}</span>
         </button>
       }
 
@@ -79,38 +166,6 @@
         [style.top.px]="position().y"
       />
     </div>
-  </div>
-
-  <div class="pad" aria-label="Move the character">
-    @for (row of [['nw', 'n', 'ne'], ['w', '', 'e'], ['sw', 's', 'se']]; track $index) {
-      <div class="pad__row">
-        @for (direction of row; track $index) {
-          @if (direction) {
-            <button
-              class="pad__key"
-              type="button"
-              [attr.aria-label]="'Walk ' + direction"
-              (click)="nudge($any(direction))"
-            >
-              <span aria-hidden="true">{{
-                {
-                  n: '↑',
-                  ne: '↗',
-                  e: '→',
-                  se: '↘',
-                  s: '↓',
-                  sw: '↙',
-                  w: '←',
-                  nw: '↖'
-                }[direction]
-              }}</span>
-            </button>
-          } @else {
-            <span class="pad__gap" aria-hidden="true"></span>
-          }
-        }
-      </div>
-    }
   </div>
 
   @if (openSpot(); as view) {

@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
+import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
 import { Rng } from '../../core/rng';
 import { ProgressService } from '../../core/progress.service';
@@ -51,6 +52,17 @@ export class PlayPage {
   private readonly packOptions = inject(PackOptionsService);
 
   readonly character = this.media.character;
+  readonly characterName = computed(() => this.character().name);
+
+  /**
+   * The drawing for this question, when the media pack has one. Spelling asks
+   * "how do you write this?", so the picture *is* the question; without one the
+   * emoji stands in.
+   */
+  readonly questionPicture = computed(() => {
+    const id = this.snapshot()?.question.picture;
+    return id ? (this.media.picture(id) ?? null) : null;
+  });
 
   private readonly routeSignals = this.router.signals[Views.Play];
   readonly packId = this.routeSignals.pathVars.packId;
@@ -164,9 +176,7 @@ export class PlayPage {
   readonly mapHref = computed(() => {
     const href = this.router.hrefForView(Views.Map);
     const challenge = this.challenge();
-    return challenge
-      ? `${href}?at=${encodeURIComponent(challenge.id)}`
-      : href;
+    return challenge ? withParam(href, 'at', challenge.id) : href;
   });
 
   readonly accentColour = computed(() => this.pack()?.colour ?? 'var(--brand)');
@@ -263,6 +273,8 @@ export class PlayPage {
         wasCorrect: result.wasCorrect,
         streak: result.streak,
         level: this.level(),
+        // So a prize won here can be left on the map where it was won.
+        place: this.challenge()?.id,
       });
       this.starsJustWon.set(outcome.starsAwarded);
       this.newPrizes.set(outcome.newPrizes);

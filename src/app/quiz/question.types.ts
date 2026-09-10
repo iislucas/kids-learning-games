@@ -7,6 +7,14 @@ export interface Question {
   instruction?: string;
   /** Large decorative emoji shown with the question. */
   emoji?: string;
+  /**
+   * A picture to show instead of the emoji, if the media pack has one drawn.
+   * Spelling needs this: the whole question is "what is this a picture of?",
+   * and an emoji is a poor and sometimes ambiguous stand-in.
+   */
+  picture?: string;
+  /** What that picture should be of, for whoever is generating it. */
+  pictureLabel?: string;
   choices: string[];
   correctIndex: number;
   /** Shown after a wrong answer to teach rather than just mark. */
@@ -198,6 +206,8 @@ export function makeChoice(
     distractors: string[];
     instruction?: string;
     emoji?: string;
+    picture?: string;
+    pictureLabel?: string;
     explanation?: string;
   },
 ): Question {
@@ -207,6 +217,8 @@ export function makeChoice(
     prompt: parts.prompt,
     instruction: parts.instruction,
     emoji: parts.emoji,
+    picture: parts.picture,
+    pictureLabel: parts.pictureLabel,
     explanation: parts.explanation,
     choices,
     correctIndex: choices.indexOf(parts.correct),

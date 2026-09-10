@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
+import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
 import { ProgressService } from '../../core/progress.service';
 import { BADGES } from '../../core/mastery';
@@ -53,7 +54,7 @@ export class HomePage {
         answered: stats.answered,
         customised: this.packOptions.isCustomised(pack),
         href,
-        setupHref: `${href}${href.includes('?') ? '&' : '?'}setup=1`,
+        setupHref: withParam(href, 'setup', '1'),
       };
     }),
   );

@@ -38,6 +38,7 @@ export class App {
     () => this.view() !== Views.Play && this.view() !== Views.Map,
   );
 
+  readonly mapHref = computed(() => this.router.hrefForView(Views.Map));
   readonly homeHref = computed(() => this.router.hrefForView(Views.Home));
   readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));
   readonly settingsHref = computed(() => this.router.hrefForView(Views.Settings));

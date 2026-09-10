@@ -20,6 +20,15 @@ export interface ProgressState {
   correct: number;
   bestStreak: number;
   unlockedPrizeIds: string[];
+  /**
+   * Where each prize was won, as a challenge id or `pack:<id>`.
+   *
+   * Prizes unlock on a cumulative star total, which knows nothing about place —
+   * so the place has to be recorded as it happens. It is what lets the map show
+   * a prize where she earned it rather than in a list, which is a much better
+   * souvenir: the landscape fills up with the things she did there.
+   */
+  prizePlaces: Record<string, string>;
   packStats: Record<string, PackStats>;
   /** ISO yyyy-mm-dd of the last day a question was answered. */
   lastPlayedDay: string | null;
@@ -32,6 +41,7 @@ const EMPTY: ProgressState = {
   correct: 0,
   bestStreak: 0,
   unlockedPrizeIds: [],
+  prizePlaces: {},
   packStats: {},
   lastPlayedDay: null,
   dayStreak: 0,
@@ -81,6 +91,12 @@ export class ProgressService {
   readonly unlockedPrizeIds = computed(
     () => new Set(this.state().unlockedPrizeIds),
   );
+
+  /**
+   * Where each prize was won. Absent for anything won before places were
+   * recorded, which the map treats as "somewhere in the middle".
+   */
+  readonly prizePlaces = computed(() => this.state().prizePlaces ?? {});
   readonly unlockedPrizes = computed(() =>
     PRIZES.filter((prize) => this.unlockedPrizeIds().has(prize.id)),
   );
@@ -119,9 +135,12 @@ export class ProgressService {
     /** Streak *including* this answer. */
     streak: number;
     level: number;
+    /** Challenge id, or `pack:<id>` for an ordinary round. */
+    place?: string;
     now?: Date;
   }): AnswerOutcome {
     const { packId, wasCorrect, streak, level } = options;
+    const place = options.place ?? `pack:${packId}`;
     const today = localDayKey(options.now ?? new Date());
     const before = this.state();
 
@@ -160,6 +179,10 @@ export class ProgressService {
       correct: before.correct + (wasCorrect ? 1 : 0),
       bestStreak: Math.max(before.bestStreak, streak),
       unlockedPrizeIds: unlockedIds,
+      prizePlaces: {
+        ...(before.prizePlaces ?? {}),
+        ...Object.fromEntries(newPrizes.map((prize) => [prize.id, place])),
+      },
       packStats: {
         ...before.packStats,
         [packId]: {

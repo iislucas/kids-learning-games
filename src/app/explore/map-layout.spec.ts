@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CHALLENGES, findChallenge } from '../quiz/challenges';
-import { mapSvg } from './map-art';
+import {
+  PROP_KINDS,
+  TERRAIN_IDS,
+  TILE_SIZE,
+  mapSketchSvg,
+  pathThrough,
+  placeProps,
+  propSvg,
+  terrainTileSvg,
+} from './map-art';
 import {
   MAP_HEIGHT,
   MAP_WIDTH,
@@ -90,32 +99,93 @@ describe('the map layout', () => {
 });
 
 describe('the map art', () => {
-  it('draws a clearing at every spot, in both the art and the sketch', () => {
-    for (const labelled of [false, true]) {
-      const svg = mapSvg(layout, { labelled });
-      for (const spot of layout.spots) {
-        expect(
-          svg.includes(`cx="${spot.x}" cy="${spot.y}"`),
-          `${spot.challengeId} has no clearing (labelled: ${labelled})`,
-        ).toBe(true);
-      }
+  it('numbers every spot on the sketch', () => {
+    const sketch = mapSketchSvg(layout);
+    for (const spot of layout.spots) {
+      expect(
+        sketch.includes(`cx="${spot.x}" cy="${spot.y}"`),
+        `${spot.challengeId} has no clearing on the sketch`,
+      ).toBe(true);
     }
-  });
-
-  it('numbers and names things only on the sketch', () => {
-    const art = mapSvg(layout);
-    const sketch = mapSvg(layout, { labelled: true });
-    expect(art).not.toContain('<text');
-    expect(sketch).toContain('<text');
     for (const region of layout.regions) {
       expect(sketch).toContain(region.name);
-      expect(art).not.toContain(region.name);
     }
   });
 
   it('is the size the layout says it is', () => {
-    expect(mapSvg(layout)).toContain(
+    expect(mapSketchSvg(layout)).toContain(
       `viewBox="0 0 ${layout.width} ${layout.height}"`,
     );
+  });
+
+  it('draws a tile for every terrain the map uses', () => {
+    for (const region of layout.regions) {
+      expect(TERRAIN_IDS).toContain(region.terrain);
+    }
+    for (const terrain of TERRAIN_IDS) {
+      const tile = terrainTileSvg(terrain);
+      expect(tile).toContain(`width="${TILE_SIZE}" height="${TILE_SIZE}"`);
+      expect(tile.length).toBeGreaterThan(200);
+    }
+  });
+
+  /**
+   * The one thing that actually matters about a tile. Marks that stop at the
+   * edge make a visible grid the moment it repeats, so each one is drawn at
+   * every wrap offset — which shows up as coordinates outside the tile.
+   */
+  it('draws tile marks across the edges so they repeat seamlessly', () => {
+    for (const terrain of TERRAIN_IDS) {
+      expect(
+        /-\d/.test(terrainTileSvg(terrain)),
+        `${terrain} has no marks crossing its edges`,
+      ).toBe(true);
+    }
+  });
+
+  it('draws every prop on a transparent square', () => {
+    for (const kind of PROP_KINDS) {
+      const svg = propSvg(kind);
+      expect(svg).toContain('<svg');
+      expect(svg).not.toContain('<rect width="128" height="128"');
+    }
+  });
+
+  it('scatters props inside their region and clear of the clearings', () => {
+    for (const region of layout.regions) {
+      const spots = layout.spots.filter((spot) => spot.regionId === region.id);
+      const props = placeProps(region, spots);
+      expect(props.length).toBeGreaterThan(0);
+      for (const prop of props) {
+        const nx = (prop.x - region.cx) / region.rx;
+        const ny = (prop.y - region.cy) / region.ry;
+        expect(Math.hypot(nx, ny)).toBeLessThanOrEqual(1);
+        expect(PROP_KINDS).toContain(prop.kind);
+        for (const spot of spots) {
+          expect(Math.hypot(spot.x - prop.x, spot.y - prop.y)).toBeGreaterThanOrEqual(
+            78,
+          );
+        }
+      }
+    }
+  });
+
+  it('places props identically every time, so scenery never wanders', () => {
+    const region = layout.regions[0];
+    const spots = layout.spots.filter((spot) => spot.regionId === region.id);
+    expect(placeProps(region, spots)).toEqual(placeProps(region, spots));
+  });
+
+  it('joins each region\'s spots in order', () => {
+    for (const region of layout.regions) {
+      const spots = layout.spots.filter((spot) => spot.regionId === region.id);
+      const track = pathThrough(spots);
+      if (spots.length < 2) {
+        expect(track).toBe('');
+        continue;
+      }
+      const first = spots.find((spot) => spot.index === 0)!;
+      expect(track.startsWith(`M ${first.x} ${first.y}`)).toBe(true);
+    }
   });
 });

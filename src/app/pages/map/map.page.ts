@@ -13,9 +13,12 @@ import {
 } from '@angular/core';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
+import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
 import { BADGES, BadgeId } from '../../core/mastery';
 import { MasteryService } from '../../core/mastery.service';
+import { Prize } from '../../core/prizes';
+import { ProgressService } from '../../core/progress.service';
 import { MediaService } from '../../media/media.service';
 import {
   ChallengeRef,
@@ -33,17 +36,28 @@ import {
   stepToward,
   vectorFor,
 } from '../../explore/explorer';
-import { mapSvg } from '../../explore/map-art';
+import {
+  PlacedProp,
+  cssUrl,
+  noise,
+  pathThrough,
+  placeProps,
+  propSvg,
+  svgDataUrl,
+  terrainTileSvg,
+} from '../../explore/map-art';
+import { BuildStage, buildDataUrl, stageFor } from '../../explore/spot-build';
 import {
   MAP_HEIGHT,
   MAP_WIDTH,
+  MapRegion,
   MapSpot,
   buildMapLayout,
   spotAt,
   spotFor,
 } from '../../explore/map-layout';
 
-/** Arrow keys and WASD, mapped onto the eight facings. */
+/** Arrow keys and WASD. Tapping is the main way about; these are for a laptop. */
 const KEY_DIRECTIONS: Record<string, Direction> = {
   ArrowUp: 'n',
   ArrowDown: 's',
@@ -55,27 +69,43 @@ const KEY_DIRECTIONS: Record<string, Direction> = {
   d: 'e',
 };
 
-/** One press of a key or the pad moves her this far. */
-const NUDGE = 120;
+/** One press of an arrow key moves her this far. */
+const NUDGE = 130;
 
 interface SpotView {
   spot: MapSpot;
   ref: ChallengeRef;
+  region: MapRegion;
   badges: BadgeId[];
+  stage: BuildStage;
+  build: string;
   available: boolean;
   /** Why it is shut, when it is. */
   closedBecause: string | null;
   playHref: string;
 }
 
+interface PlacedPrize {
+  prize: Prize;
+  x: number;
+  y: number;
+}
+
+interface RegionView {
+  region: MapRegion;
+  tile: string;
+  props: (PlacedProp & { src: string })[];
+  track: string;
+}
+
 /**
- * The landscape she walks around.
+ * The landscape she walks around, and the first thing she sees.
  *
- * The map is the collection screen and the menu at the same time: every place
- * on it is one complete set of questions, and the badges she has won are shown
- * where she won them. That is a far better answer to "what shall I do now?"
- * than a list of four cards, because it shows what is left as well as what is
- * done.
+ * The map is the menu and the collection screen at once: every place on it is
+ * one complete set of questions, what she has built there shows how far in she
+ * is, and the prizes she has won sit where she won them. That answers "what
+ * shall I do now?" far better than a list of games, because it shows what is
+ * left as well as what is done.
  */
 @Component({
   selector: 'app-map-page',
@@ -89,6 +119,7 @@ export class MapPage {
     inject(RoutingService<AppPathPatterns>);
   private readonly audio = inject(AudioService);
   private readonly mastery = inject(MasteryService);
+  private readonly progress = inject(ProgressService);
   private readonly media = inject(MediaService);
   private readonly packOptions = inject(PackOptionsService);
 
@@ -102,21 +133,43 @@ export class MapPage {
   readonly mapWidth = MAP_WIDTH;
   readonly mapHeight = MAP_HEIGHT;
 
-  // Deliberately not `required`: the effect below reads it to know when the
-  // view has been created, and a required query throws rather than returning
-  // undefined while it is still unresolved.
+  // Deliberately not `required`: the render callback reads it before Angular
+  // has necessarily resolved it, and a required query throws rather than
+  // returning undefined.
   private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
 
   /**
-   * The landscape. A painting generated in the media studio if there is one,
-   * otherwise the one drawn from the layout — which is what a fresh install
-   * with no API keys gets, and it is a perfectly good map.
+   * A whole-map painting, if one has been generated. It covers the tiles and
+   * props entirely, so it is all-or-nothing.
    */
-  readonly background = computed(() => {
-    const painted = this.media.pack().map?.src;
-    if (painted) return `url("${painted}")`;
-    return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(mapSvg(this.layout))}")`;
+  readonly painting = computed(() => this.media.map().background?.src ?? null);
+  readonly paintingUrl = computed(() => {
+    const painting = this.painting();
+    return painting ? cssUrl(painting) : null;
   });
+
+  /**
+   * Each region as a patch of tiled ground with its scenery on top. Generated
+   * art replaces any piece; anything not generated falls back to the drawn one,
+   * so a half-finished media pack still looks like a landscape.
+   */
+  readonly regions = computed<RegionView[]>(() =>
+    this.layout.regions.map((region) => {
+      const spots = this.layout.spots.filter((spot) => spot.regionId === region.id);
+      return {
+        region,
+        tile: cssUrl(
+          this.media.mapTile(region.terrain) ??
+            svgDataUrl(terrainTileSvg(region.terrain)),
+        ),
+        props: placeProps(region, spots).map((prop) => ({
+          ...prop,
+          src: this.media.mapProp(prop.kind) ?? svgDataUrl(propSvg(prop.kind)),
+        })),
+        track: pathThrough(spots),
+      };
+    }),
+  );
 
   readonly position = signal<Point>(this.startingPoint());
   readonly facing = signal<Direction>('s');
@@ -125,31 +178,72 @@ export class MapPage {
   private frame: number | null = null;
   private lastFrameAt = 0;
 
-  /** Every place on the map, with what has been won there. */
+  /** Every place on the map, with what has been built there. */
   readonly spots = computed<SpotView[]>(() => {
     this.mastery.all();
     return this.layout.spots.flatMap((spot) => {
       const ref = findChallenge(spot.challengeId);
-      if (!ref) return [];
+      const region = this.layout.regions.find((r) => r.id === spot.regionId);
+      if (!ref || !region) return [];
       const selection = this.packOptions.selectionFor(ref.pack);
       const available = isChallengeAvailable(ref, selection);
+      const badges = this.mastery.badgesForChallenge(spot.challengeId);
+      const stage = stageFor(badges);
       const href = this.router.hrefForView(Views.Play, { packId: ref.pack.id });
       return [
         {
           spot,
           ref,
-          badges: this.mastery.badgesForChallenge(spot.challengeId),
+          region,
+          badges,
+          stage,
+          build: buildDataUrl(region.terrain, stage, region.colour),
           available,
           closedBecause: available ? null : this.closedReason(ref),
-          playHref: `${href}?challenge=${encodeURIComponent(spot.challengeId)}`,
+          playHref: withParam(href, 'challenge', spot.challengeId),
         },
       ];
     });
   });
 
+  /**
+   * Prizes shown where they were won.
+   *
+   * A prize won in an ordinary round only knows its pack, so it lands somewhere
+   * in that region rather than at a spot. Anything won before places were
+   * recorded has no home at all and gathers at the crossroads — which reads
+   * fine, as the place she set out from.
+   */
+  readonly placedPrizes = computed<PlacedPrize[]>(() => {
+    const places = this.progress.prizePlaces();
+    return this.progress.unlockedPrizes().map((prize) => {
+      const anchor = this.anchorFor(places[prize.id]);
+      // Scattered around their anchor so several at one spot do not stack.
+      const angle = noise(`${prize.id}-angle`) * Math.PI * 2;
+      const distance = 62 + noise(`${prize.id}-dist`) * 46;
+      return {
+        prize,
+        x: Math.round(anchor.x + Math.cos(angle) * distance),
+        y: Math.round(anchor.y + Math.sin(angle) * distance * 0.7),
+      };
+    });
+  });
+
+  private anchorFor(place: string | undefined): Point {
+    if (place) {
+      const spot = spotFor(this.layout, place);
+      if (spot) return { x: spot.x, y: spot.y };
+      const packId = place.startsWith('pack:') ? place.slice(5) : null;
+      const region = this.layout.regions.find((r) => r.packId === packId);
+      if (region) return { x: region.cx, y: region.cy };
+    }
+    return this.layout.start;
+  }
+
   /** The signpost card that is open, if any. */
   readonly openSpot = computed<SpotView | null>(
-    () => this.spots().find((view) => view.spot.challengeId === this.openParam()) ?? null,
+    () =>
+      this.spots().find((view) => view.spot.challengeId === this.openParam()) ?? null,
   );
 
   readonly openRecord = computed(() => {
@@ -158,7 +252,11 @@ export class MapPage {
   });
 
   readonly homeHref = computed(() => this.router.hrefForView(Views.Home));
+  readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));
+  readonly settingsHref = computed(() => this.router.hrefForView(Views.Settings));
 
+  readonly stars = this.progress.stars;
+  readonly soundsOn = this.audio.soundsEnabled;
   readonly earnedCount = this.mastery.badgeCount;
   readonly totalBadges = computed(() => this.layout.spots.length * BADGES.length);
 
@@ -209,7 +307,7 @@ export class MapPage {
     );
   }
 
-  /** Taps on open ground. The click coordinate is in map space already. */
+  /** Taps on open ground: she walks to where the finger landed. */
   onMapClick(event: MouseEvent): void {
     const viewport = this.viewport()?.nativeElement;
     if (!viewport) return;
@@ -225,11 +323,6 @@ export class MapPage {
     const direction = KEY_DIRECTIONS[event.key];
     if (!direction) return;
     event.preventDefault();
-    this.nudge(direction);
-  }
-
-  /** The on-screen pad, and the arrow keys. */
-  nudge(direction: Direction): void {
     const from = this.target ?? this.position();
     const vector = vectorFor(direction);
     this.walkTo({ x: from.x + vector.x * NUDGE, y: from.y + vector.y * NUDGE });
@@ -306,7 +399,7 @@ export class MapPage {
     this.openParam.set(spot.challengeId);
   }
 
-  /** Tapping a signpost walks her over to it, which then opens it. */
+  /** Tapping a place walks her over to it, which then opens it. */
   goToSpot(event: Event, view: SpotView): void {
     event.stopPropagation();
     this.walkTo({ x: view.spot.x, y: view.spot.y });
@@ -343,10 +436,14 @@ export class MapPage {
     this.router.navigateTo(href, { clearUrlParams: true });
   }
 
+  toggleSounds(): void {
+    this.audio.toggleSounds();
+  }
+
   /** Opens the pack's settings so a closed spot can be switched back on. */
   openSettings(event: Event, view: SpotView): void {
     const href = this.router.hrefForView(Views.Play, { packId: view.ref.pack.id });
-    this.go(event, `${href}?setup=1`);
+    this.go(event, withParam(href, 'setup', '1'));
   }
 
   hasBadge(view: SpotView, id: BadgeId): boolean {

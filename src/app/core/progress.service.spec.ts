@@ -188,6 +188,68 @@ describe('ProgressService', () => {
     expect(reloaded.answered()).toBe(5);
   });
 
+  describe('where a prize was won', () => {
+    /** Answers until a prize lands, and returns the ones it won. */
+    function playUntilAPrize(service: ProgressService, place?: string) {
+      for (let streak = 1; streak <= 10; streak++) {
+        const outcome = service.recordAnswer({
+          packId: place ? 'maths' : 'english',
+          wasCorrect: true,
+          streak,
+          level: 1,
+          place,
+        });
+        if (outcome.newPrizes.length > 0) return outcome.newPrizes;
+      }
+      throw new Error('no prize was won');
+    }
+
+    it('remembers the challenge it landed in', () => {
+      const service = makeService();
+      for (const prize of playUntilAPrize(service, 'maths.times.7')) {
+        expect(service.prizePlaces()[prize.id]).toBe('maths.times.7');
+      }
+    });
+
+    /** An ordinary round has no challenge, so the pack is as precise as it gets. */
+    it('falls back to the pack for a round that is not a challenge', () => {
+      const service = makeService();
+      for (const prize of playUntilAPrize(service)) {
+        expect(service.prizePlaces()[prize.id]).toBe('pack:english');
+      }
+    });
+
+    it('does not move a prize that was already won', () => {
+      const service = makeService();
+      const first = playUntilAPrize(service, 'maths.times.7');
+      // A long run somewhere else must not relabel what is already placed.
+      for (let i = 0; i < 40; i++) {
+        service.recordAnswer({
+          packId: 'french',
+          wasCorrect: true,
+          streak: 10,
+          level: 1,
+          place: 'french.numbers',
+        });
+      }
+      for (const prize of first) {
+        expect(service.prizePlaces()[prize.id]).toBe('maths.times.7');
+      }
+    });
+
+    it('records nothing for an answer that wins nothing', () => {
+      const service = makeService();
+      service.recordAnswer({
+        packId: 'maths',
+        wasCorrect: false,
+        streak: 0,
+        level: 1,
+        place: 'maths.times.7',
+      });
+      expect(service.prizePlaces()).toEqual({});
+    });
+  });
+
   it('clears everything on reset', () => {
     const service = makeService();
     scoreCorrect(service, 10);

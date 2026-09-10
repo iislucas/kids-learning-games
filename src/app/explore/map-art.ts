@@ -1,33 +1,59 @@
 import { MapLayout, MapRegion, MapSpot } from './map-layout';
 
 /**
- * The landscape, drawn from the layout.
+ * The landscape, built from tiles and sprites rather than one big picture.
  *
- * It has two jobs, and doing both from one function is the point:
+ * Each region is a patch of ground filled with a **seamless tile**, with
+ * **props** — trees, boulders, cottages — scattered over it at positions
+ * derived from the layout. Three reasons that beats a single painting:
  *
- *  - **The default background.** A fresh clone has no API keys, so the map has
- *    to look like somewhere without any image model involved — the same reason
- *    the fox is drawn in `generate-default-media.mts`.
- *  - **The sketch handed to the image model.** Labelled, flat and unambiguous,
- *    so a generated painting puts its meadows and ponds exactly where the
- *    signposts already are. Feeding the model the same geometry the app uses is
- *    what keeps the art and the tappable spots from drifting apart.
+ *  - Every piece can be replaced on its own by a generated image, and a 256px
+ *    tile plus a handful of sprites is a fraction of the bytes of a
+ *    1700×1400 painting, which matters when the media pack lives in
+ *    `localStorage`.
+ *  - A tile repeats to fill any area, so adding a region or moving one does not
+ *    need the art regenerating.
+ *  - An image model asked for one tree gets one tree right. Asked for a whole
+ *    map with thirty-seven clearings in exact positions, it does not.
+ *
+ * Everything here is built from soft gradients rather than flat fills. Flat SVG
+ * shapes read as a diagram; the same shapes with one light source and a contact
+ * shadow read as a place. The labelled sketch is the deliberate exception — it
+ * stays flat, because a model reading it needs regions and circles, not art.
  *
  * Angular-free, and free of `enum`s and parameter properties, because
  * `scripts/generate-default-media.mts` imports it directly.
  */
 
-export interface MapArtOptions {
-  /**
-   * Draw region names, spot numbers and a legend. On for the sketch the image
-   * model reads; off for the background the child sees, which carries its
-   * labels as live DOM instead.
-   */
-  labelled?: boolean;
-}
+export type TerrainId = MapRegion['terrain'];
+
+export const TERRAIN_IDS: TerrainId[] = [
+  'hills',
+  'water',
+  'caves',
+  'forest',
+  'village',
+  'meadow',
+];
+
+/** The scenery pieces. One image each, when they are generated. */
+export const PROP_KINDS = [
+  'tree',
+  'pine',
+  'boulder',
+  'cottage',
+  'pond',
+  'flower',
+] as const;
+
+export type PropKind = (typeof PROP_KINDS)[number];
+
+/** Tiles are square and repeat; props are drawn in a box this size. */
+export const TILE_SIZE = 256;
+export const PROP_SIZE = 128;
 
 /** Deterministic jitter, so scenery looks scattered but never moves. */
-function noise(seed: string): number {
+export function noise(seed: string): number {
   let hash = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     hash ^= seed.charCodeAt(i);
@@ -36,173 +62,331 @@ function noise(seed: string): number {
   return ((hash >>> 0) % 10000) / 10000;
 }
 
-function mix(colour: string, amount: number): string {
-  // Lightens towards white by `amount` (0..1) without needing a colour library.
+/** Lightens towards white; a negative amount darkens towards black. */
+export function shade(colour: string, amount: number): string {
   const value = parseInt(colour.slice(1), 16);
+  const towards = amount >= 0 ? 255 : 0;
+  const strength = Math.abs(amount);
   const channel = (shift: number) => {
     const base = (value >> shift) & 0xff;
-    return Math.round(base + (255 - base) * amount);
+    return Math.round(base + (towards - base) * strength);
   };
   const hex = (n: number) => n.toString(16).padStart(2, '0');
   return `#${hex(channel(16))}${hex(channel(8))}${hex(channel(0))}`;
 }
 
-function tree(x: number, y: number, scale: number, colour: string): string {
-  const h = 34 * scale;
-  const w = 22 * scale;
-  return [
-    `<rect x="${x - 3 * scale}" y="${y - 6 * scale}" width="${6 * scale}" height="${12 * scale}" rx="${2 * scale}" fill="#8a5a33"/>`,
-    `<ellipse cx="${x}" cy="${y - h * 0.55}" rx="${w}" ry="${h * 0.6}" fill="${colour}"/>`,
-    `<ellipse cx="${x - w * 0.4}" cy="${y - h * 0.3}" rx="${w * 0.7}" ry="${h * 0.42}" fill="${mix(colour, 0.12)}"/>`,
-  ].join('');
+function svgDocument(width: number, height: number, body: string): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${width} ${height}">${body}</svg>`
+  );
 }
 
-function hill(x: number, y: number, width: number, colour: string): string {
-  return `<path d="M ${x - width} ${y} q ${width} ${-width * 0.85} ${width * 2} 0 z" fill="${colour}"/>`;
-}
-
-function house(x: number, y: number, colour: string): string {
-  return [
-    `<rect x="${x - 22}" y="${y - 30}" width="44" height="34" rx="4" fill="${mix(colour, 0.7)}"/>`,
-    `<path d="M ${x - 30} ${y - 30} L ${x} ${y - 56} L ${x + 30} ${y - 30} z" fill="${colour}"/>`,
-    `<rect x="${x - 7}" y="${y - 16}" width="14" height="20" rx="2" fill="${mix(colour, 0.25)}"/>`,
-  ].join('');
-}
-
-function flower(x: number, y: number, colour: string): string {
-  return `<circle cx="${x}" cy="${y}" r="5" fill="${colour}"/><circle cx="${x}" cy="${y}" r="2" fill="#fff3b0"/>`;
+export function svgDataUrl(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
- * Scenery scattered inside a region, kept clear of the spots themselves.
+ * A `url()` for a CSS background.
  *
- * Every piece is drawn several shades away from the ground it sits on. Tinting
- * scenery towards its region's own colour makes it disappear, which is exactly
- * what a landscape must not do — the terrain is how she tells the ponds from
- * the hills at a glance.
+ * The quotes are not optional. `encodeURIComponent` leaves parentheses alone,
+ * and every `rotate(...)` and `translate(...)` in the SVG then closes the
+ * `url(` early — so the declaration is dropped and the ground silently renders
+ * blank.
  */
-function decorate(region: MapRegion, spots: MapSpot[]): string {
-  const pieces: string[] = [];
-  const count = region.terrain === 'village' ? 10 : 20;
+export function cssUrl(src: string): string {
+  return `url("${src}")`;
+}
+
+// ── Ground tiles ─────────────────────────────────────────────────────────────
+
+/**
+ * Repeats a shape at every wrap offset so it crosses the tile edge and comes
+ * back on the other side.
+ *
+ * This is the whole trick to a seamless tile: draw nine copies, clip to the
+ * tile, and anything that runs off an edge is already drawn arriving at the
+ * opposite one. Without it every tile boundary shows as a hard line, which on a
+ * repeating background is the first thing the eye finds.
+ */
+function wrapped(draw: (x: number, y: number) => string, x: number, y: number): string {
+  const out: string[] = [];
+  for (const dx of [-TILE_SIZE, 0, TILE_SIZE]) {
+    for (const dy of [-TILE_SIZE, 0, TILE_SIZE]) {
+      out.push(draw(x + dx, y + dy));
+    }
+  }
+  return out.join('');
+}
+
+interface TileRecipe {
+  /** Base wash, lit from above. */
+  top: string;
+  bottom: string;
+  /** Speckles strewn over it. */
+  marks: (x: number, y: number, size: number, seed: number) => string;
+  count: number;
+}
+
+const TILE_RECIPES: Record<TerrainId, TileRecipe> = {
+  hills: {
+    top: '#a9e08a',
+    bottom: '#7fc46a',
+    count: 26,
+    marks: (x, y, size) =>
+      `<path d="M ${x} ${y} q ${size * 0.4} ${-size} ${size * 0.9} ${-size * 0.2}" ` +
+      `fill="none" stroke="#5fae57" stroke-width="${size * 0.22}" stroke-linecap="round" opacity="0.55"/>`,
+  },
+  meadow: {
+    top: '#b6e893',
+    bottom: '#8ed07a',
+    count: 22,
+    marks: (x, y, size, seed) =>
+      seed > 0.55
+        ? `<circle cx="${x}" cy="${y}" r="${size * 0.3}" fill="${['#ff8fb1', '#ffd45e', '#b98cff'][Math.floor(seed * 3) % 3]}" opacity="0.85"/>`
+        : `<path d="M ${x} ${y} l ${size * 0.2} ${-size * 0.8}" stroke="#63b06a" stroke-width="${size * 0.18}" stroke-linecap="round" opacity="0.6"/>`,
+  },
+  water: {
+    top: '#7fd4ee',
+    bottom: '#3fa6cf',
+    count: 18,
+    marks: (x, y, size) =>
+      `<path d="M ${x - size} ${y} q ${size * 0.5} ${-size * 0.5} ${size} 0 q ${size * 0.5} ${size * 0.5} ${size} 0" ` +
+      `fill="none" stroke="#ffffff" stroke-width="${size * 0.2}" stroke-linecap="round" opacity="0.45"/>`,
+  },
+  caves: {
+    top: '#b9b3a6',
+    bottom: '#8f887b',
+    count: 24,
+    marks: (x, y, size, seed) =>
+      `<ellipse cx="${x}" cy="${y}" rx="${size * 0.9}" ry="${size * 0.55}" ` +
+      `fill="${seed > 0.5 ? '#6f6a60' : '#cfc8ba'}" opacity="0.5"/>`,
+  },
+  forest: {
+    top: '#8fd08d',
+    bottom: '#5da966',
+    count: 28,
+    marks: (x, y, size, seed) =>
+      `<ellipse cx="${x}" cy="${y}" rx="${size * 0.7}" ry="${size * 0.32}" ` +
+      `fill="${seed > 0.5 ? '#3f8f52' : '#a8dda0'}" opacity="0.5" ` +
+      `transform="rotate(${Math.round(seed * 90 - 45)} ${x} ${y})"/>`,
+  },
+  village: {
+    top: '#e3d9c2',
+    bottom: '#c8bda3',
+    count: 30,
+    marks: (x, y, size, seed) =>
+      `<rect x="${x}" y="${y}" width="${size * 1.6}" height="${size * 1.1}" rx="${size * 0.35}" ` +
+      `fill="${seed > 0.5 ? '#d5c9ae' : '#efe6d2'}" opacity="0.75" ` +
+      `transform="rotate(${Math.round(seed * 30 - 15)} ${x} ${y})"/>`,
+  },
+};
+
+/** One seamless ground tile. Repeat it to fill a region. */
+export function terrainTileSvg(terrain: TerrainId): string {
+  const recipe = TILE_RECIPES[terrain];
+  const marks: string[] = [];
+
+  for (let i = 0; i < recipe.count; i++) {
+    const x = noise(`${terrain}-x-${i}`) * TILE_SIZE;
+    const y = noise(`${terrain}-y-${i}`) * TILE_SIZE;
+    const seed = noise(`${terrain}-k-${i}`);
+    const size = 8 + noise(`${terrain}-s-${i}`) * 14;
+    marks.push(wrapped((mx, my) => recipe.marks(mx, my, size, seed), x, y));
+  }
+
+  return svgDocument(
+    TILE_SIZE,
+    TILE_SIZE,
+    `<defs>` +
+      `<linearGradient id="t" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0%" stop-color="${recipe.top}"/>` +
+      `<stop offset="100%" stop-color="${recipe.bottom}"/>` +
+      `</linearGradient>` +
+      `<clipPath id="c"><rect width="${TILE_SIZE}" height="${TILE_SIZE}"/></clipPath>` +
+      `</defs>` +
+      `<rect width="${TILE_SIZE}" height="${TILE_SIZE}" fill="url(#t)"/>` +
+      `<g clip-path="url(#c)">${marks.join('')}</g>`,
+  );
+}
+
+// ── Props ────────────────────────────────────────────────────────────────────
+
+const FOLIAGE = '#2f9e63';
+const TIMBER = '#8a5a33';
+
+/** Shared contact shadow. Nothing sells "standing on the ground" more cheaply. */
+function contactShadow(cx: number, cy: number, rx: number): string {
+  return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.34}" fill="#2c2440" opacity="0.2"/>`;
+}
+
+const PROP_BODIES: Record<PropKind, string> = {
+  tree:
+    contactShadow(64, 116, 34) +
+    `<rect x="57" y="82" width="14" height="34" rx="6" fill="${TIMBER}"/>` +
+    `<rect x="57" y="82" width="6" height="34" fill="${shade(TIMBER, 0.25)}" opacity="0.7"/>` +
+    `<ellipse cx="64" cy="60" rx="46" ry="42" fill="${FOLIAGE}"/>` +
+    `<ellipse cx="50" cy="46" rx="28" ry="24" fill="${shade(FOLIAGE, 0.3)}"/>` +
+    `<ellipse cx="80" cy="76" rx="24" ry="18" fill="${shade(FOLIAGE, -0.22)}" opacity="0.5"/>`,
+
+  pine:
+    contactShadow(64, 118, 28) +
+    `<rect x="59" y="92" width="10" height="26" rx="4" fill="${TIMBER}"/>` +
+    `<path d="M 64 8 L 96 56 L 32 56 z" fill="${shade(FOLIAGE, -0.1)}"/>` +
+    `<path d="M 64 34 L 102 92 L 26 92 z" fill="${FOLIAGE}"/>` +
+    `<path d="M 64 8 L 64 56 L 32 56 z" fill="${shade(FOLIAGE, 0.22)}" opacity="0.8"/>` +
+    `<path d="M 64 34 L 64 92 L 26 92 z" fill="${shade(FOLIAGE, 0.16)}" opacity="0.7"/>`,
+
+  boulder:
+    contactShadow(64, 116, 44) +
+    `<path d="M 16 116 q 4 -66 48 -68 q 44 2 48 68 z" fill="#a49c8e"/>` +
+    `<path d="M 30 84 q 18 -42 46 -36 q -24 6 -34 40 z" fill="#c9c2b3"/>` +
+    `<path d="M 92 116 q 8 -40 -8 -60 q 26 18 24 60 z" fill="#7d766a" opacity="0.75"/>` +
+    `<path d="M 48 116 q 0 -34 16 -34 q 16 0 16 34 z" fill="#3d382f"/>`,
+
+  cottage:
+    contactShadow(64, 118, 42) +
+    `<rect x="26" y="66" width="76" height="52" rx="5" fill="#f2e6cd"/>` +
+    `<rect x="26" y="66" width="26" height="52" fill="#d8c9a9" opacity="0.75"/>` +
+    `<path d="M 14 66 L 64 20 L 114 66 z" fill="#d1584f"/>` +
+    `<path d="M 14 66 L 64 20 L 64 66 z" fill="#e8776c"/>` +
+    `<rect x="54" y="88" width="20" height="30" rx="3" fill="#8a5a33"/>` +
+    `<circle cx="40" cy="86" r="9" fill="#9fd8ee" stroke="#f2e6cd" stroke-width="3"/>` +
+    `<rect x="86" y="26" width="12" height="26" rx="3" fill="#b8b0a2"/>`,
+
+  pond:
+    `<ellipse cx="64" cy="72" rx="58" ry="34" fill="#8fdcf2"/>` +
+    `<ellipse cx="64" cy="72" rx="50" ry="27" fill="#3fa6cf"/>` +
+    `<ellipse cx="52" cy="62" rx="26" ry="12" fill="#8fdcf2" opacity="0.6"/>` +
+    `<ellipse cx="88" cy="82" rx="14" ry="7" fill="#2f8fb8" opacity="0.6"/>` +
+    `<circle cx="40" cy="84" r="9" fill="#4fae62"/>` +
+    `<circle cx="86" cy="60" r="7" fill="#4fae62"/>` +
+    `<circle cx="86" cy="60" r="3" fill="#ff8fb1"/>`,
+
+  flower:
+    contactShadow(64, 112, 16) +
+    `<path d="M 64 112 q -6 -30 0 -46" stroke="#4fae62" stroke-width="7" fill="none" stroke-linecap="round"/>` +
+    `<path d="M 64 88 q -18 -6 -22 -18 q 16 -2 22 10 z" fill="#4fae62"/>` +
+    `<circle cx="64" cy="52" r="24" fill="#ff8fb1"/>` +
+    `<circle cx="56" cy="44" r="13" fill="#ffb7cf"/>` +
+    `<circle cx="64" cy="52" r="10" fill="#ffd45e"/>`,
+};
+
+/** One scenery sprite, on a transparent background. */
+export function propSvg(kind: PropKind): string {
+  return svgDocument(PROP_SIZE, PROP_SIZE, PROP_BODIES[kind]);
+}
+
+// ── Placing them ─────────────────────────────────────────────────────────────
+
+/** Which props each terrain scatters, in rough order of how often. */
+const TERRAIN_PROPS: Record<TerrainId, PropKind[]> = {
+  hills: ['tree', 'boulder', 'flower'],
+  meadow: ['flower', 'tree', 'flower'],
+  water: ['pond', 'pond', 'flower'],
+  caves: ['boulder', 'boulder', 'pine'],
+  forest: ['tree', 'pine', 'tree'],
+  village: ['cottage', 'cottage', 'tree'],
+};
+
+export interface PlacedProp {
+  id: string;
+  kind: PropKind;
+  x: number;
+  y: number;
+  /** Rendered width in map pixels; height follows. */
+  size: number;
+  flipped: boolean;
+}
+
+/**
+ * Scatters scenery inside a region, keeping clear of the clearings.
+ *
+ * Polar placement keeps props inside the ellipse rather than in a box around
+ * it, and biases them towards the rim, which is where the spots are not.
+ */
+export function placeProps(region: MapRegion, spots: MapSpot[]): PlacedProp[] {
+  const kinds = TERRAIN_PROPS[region.terrain];
+  const count = region.terrain === 'village' ? 12 : 20;
+  const placed: PlacedProp[] = [];
 
   for (let i = 0; i < count; i++) {
     const a = noise(`${region.id}-a-${i}`);
     const b = noise(`${region.id}-b-${i}`);
-    // Polar placement keeps scenery inside the ellipse rather than in a box
-    // around it, and pushes it towards the rim where the spots are not.
     const angle = a * Math.PI * 2;
-    const radius = 0.58 + b * 0.38;
-    const x = region.cx + Math.cos(angle) * region.rx * radius;
-    const y = region.cy + Math.sin(angle) * region.ry * radius;
+    const radius = 0.56 + b * 0.4;
+    const x = Math.round(region.cx + Math.cos(angle) * region.rx * radius);
+    const y = Math.round(region.cy + Math.sin(angle) * region.ry * radius);
 
-    if (spots.some((spot) => Math.hypot(spot.x - x, spot.y - y) < 62)) continue;
+    if (spots.some((spot) => Math.hypot(spot.x - x, spot.y - y) < 78)) continue;
+    if (placed.some((prop) => Math.hypot(prop.x - x, prop.y - y) < 56)) continue;
 
-    const scale = 0.75 + noise(`${region.id}-s-${i}`) * 0.6;
-    switch (region.terrain) {
-      case 'forest':
-        pieces.push(tree(x, y, scale * 1.15, mix('#1f7a3e', b * 0.3)));
-        break;
-      case 'hills':
-        pieces.push(hill(x, y, 62 * scale, mix(region.colour, 0.28 + b * 0.22)));
-        break;
-      case 'water':
-        pieces.push(
-          `<ellipse cx="${x}" cy="${y}" rx="${46 * scale}" ry="${21 * scale}" fill="${mix(region.colour, 0.06)}"/>` +
-            `<path d="M ${x - 22 * scale} ${y} q ${11 * scale} ${-7 * scale} ${22 * scale} 0 q ${11 * scale} ${7 * scale} ${22 * scale} 0" ` +
-            `fill="none" stroke="#ffffff" stroke-width="3" opacity="0.6"/>`,
-        );
-        break;
-      case 'village':
-        pieces.push(house(x, y, mix(region.colour, b * 0.2)));
-        break;
-      default:
-        pieces.push(
-          b > 0.55
-            ? tree(x, y, scale, mix('#1f8a58', b * 0.25))
-            : flower(x, y, ['#ff6f9c', '#ffc21f', '#a86bff'][i % 3]),
-        );
-    }
+    placed.push({
+      id: `${region.id}-${i}`,
+      kind: kinds[Math.floor(noise(`${region.id}-k-${i}`) * kinds.length) % kinds.length],
+      x,
+      y,
+      size: Math.round(74 + noise(`${region.id}-s-${i}`) * 46),
+      flipped: noise(`${region.id}-f-${i}`) > 0.5,
+    });
   }
-  return pieces.join('');
+
+  // Painter's order: things lower down are nearer, so they overlap what is
+  // behind them rather than being sliced by it.
+  return placed.sort((first, second) => first.y - second.y);
 }
 
-/** The path linking a region's spots in order, so the route reads as a route. */
-function pathThrough(spots: MapSpot[]): string {
+/** The track joining a region's spots, as an SVG path `d`. */
+export function pathThrough(spots: MapSpot[]): string {
   if (spots.length < 2) return '';
   const ordered = [...spots].sort((a, b) => a.index - b.index);
-  const points = ordered.map((spot) => `${spot.x} ${spot.y}`).join(' L ');
-  return `<path d="M ${points}" fill="none" stroke="#f2e2bd" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+  return `M ${ordered.map((spot) => `${spot.x} ${spot.y}`).join(' L ')}`;
 }
 
-export function mapSvg(layout: MapLayout, options: MapArtOptions = {}): string {
-  const labelled = options.labelled ?? false;
-  const parts: string[] = [];
+// ── The labelled sketch ──────────────────────────────────────────────────────
 
-  parts.push(
-    `<defs><radialGradient id="glade" cx="50%" cy="50%" r="50%">` +
-      `<stop offset="0%" stop-color="#fffdf3"/><stop offset="100%" stop-color="#f6edd4"/>` +
-      `</radialGradient></defs>`,
-  );
-
-  // Ground.
-  parts.push(
-    `<rect width="${layout.width}" height="${layout.height}" fill="${labelled ? '#ffffff' : '#cdeccb'}"/>`,
-  );
-
-  // The crossroads the regions hang off, drawn before them so it reads as
-  // ground rather than as a road on top of the scenery.
-  if (!labelled) {
-    parts.push(
-      `<ellipse cx="${layout.start.x}" cy="${layout.start.y}" rx="${layout.width * 0.42}" ry="120" fill="#e5f3d8"/>`,
-    );
-  }
+/**
+ * The map plan: flat regions, a numbered circle per spot, names.
+ *
+ * Deliberately not pretty. It is what the studio shows so you can see the whole
+ * layout at once, and what an image model is given when generating a single
+ * whole-map painting instead of tiles.
+ */
+export function mapSketchSvg(layout: MapLayout): string {
+  const parts: string[] = [
+    `<rect width="${layout.width}" height="${layout.height}" fill="#ffffff"/>`,
+  ];
 
   for (const region of layout.regions) {
     const spots = layout.spots.filter((spot) => spot.regionId === region.id);
-    const fill = labelled ? mix(region.colour, 0.55) : mix(region.colour, 0.78);
-
     parts.push(
       `<ellipse cx="${region.cx}" cy="${region.cy}" rx="${region.rx}" ry="${region.ry}" ` +
-        `fill="${fill}" stroke="${labelled ? region.colour : mix(region.colour, 0.35)}" stroke-width="${labelled ? 6 : 10}"/>`,
+        `fill="${shade(region.colour, 0.55)}" stroke="${region.colour}" stroke-width="6"/>`,
     );
-
-    if (!labelled) parts.push(decorate(region, spots));
-
-    // A track joining the spots, then a clearing at each one. The clearing is
-    // what the generated art must leave open for the signpost to stand in.
-    parts.push(pathThrough(spots));
+    const track = pathThrough(spots);
+    if (track) {
+      parts.push(
+        `<path d="${track}" fill="none" stroke="#e0d3ae" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>`,
+      );
+    }
     for (const spot of spots) {
       parts.push(
-        `<circle cx="${spot.x}" cy="${spot.y}" r="42" fill="${labelled ? '#ffffff' : 'url(#glade)'}" ` +
-          `stroke="${labelled ? '#111111' : mix(region.colour, 0.3)}" stroke-width="${labelled ? 4 : 5}"/>`,
-      );
-      if (labelled) {
-        parts.push(
-          `<text x="${spot.x}" y="${spot.y + 9}" text-anchor="middle" font-family="sans-serif" ` +
-            `font-size="26" font-weight="700" fill="#111111">${spot.index + 1}</text>`,
-        );
-      }
-    }
-
-    if (labelled) {
-      parts.push(
-        `<text x="${region.cx}" y="${region.cy - region.ry + 44}" text-anchor="middle" ` +
-          `font-family="sans-serif" font-size="34" font-weight="700" fill="#111111">` +
-          `${escapeText(region.name)}</text>`,
+        `<circle cx="${spot.x}" cy="${spot.y}" r="42" fill="#ffffff" stroke="#111111" stroke-width="4"/>`,
+        `<text x="${spot.x}" y="${spot.y + 9}" text-anchor="middle" font-family="sans-serif" ` +
+          `font-size="26" font-weight="700" fill="#111111">${spot.index + 1}</text>`,
       );
     }
-  }
-
-  if (labelled) {
     parts.push(
-      `<rect x="0" y="0" width="${layout.width}" height="${layout.height}" fill="none" stroke="#111111" stroke-width="6"/>`,
+      `<text x="${region.cx}" y="${region.cy - region.ry + 44}" text-anchor="middle" ` +
+        `font-family="sans-serif" font-size="34" font-weight="700" fill="#111111">` +
+        `${escapeText(region.name)}</text>`,
     );
   }
 
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" ` +
-    `viewBox="0 0 ${layout.width} ${layout.height}">${parts.join('')}</svg>`
+  parts.push(
+    `<rect x="0" y="0" width="${layout.width}" height="${layout.height}" fill="none" stroke="#111111" stroke-width="6"/>`,
   );
+  return svgDocument(layout.width, layout.height, parts.join(''));
 }
 
 function escapeText(text: string): string {
@@ -212,8 +396,22 @@ function escapeText(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
-/** The sketch as a `data:` URI, ready for an `<img>` or the image model. */
-export function mapSketchDataUrl(layout: MapLayout): string {
-  const svg = mapSvg(layout, { labelled: true });
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
+/** How a generation prompt should describe each kind of ground. */
+export const TERRAIN_DESCRIPTIONS: Record<TerrainId, string> = {
+  hills: 'sunlit rolling grass, short and springy, with a few tufts',
+  water: 'clear shallow blue-green water with gentle ripples',
+  caves: 'grey mossy rock and loose scree',
+  forest: 'shady forest floor with fallen leaves and moss',
+  village: 'worn cobblestones and pale flagstones',
+  meadow: 'long meadow grass strewn with tiny wildflowers',
+};
+
+/** How a generation prompt should describe each scenery sprite. */
+export const PROP_DESCRIPTIONS: Record<PropKind, string> = {
+  tree: 'a single round leafy broadleaf tree',
+  pine: 'a single tall pointed pine tree',
+  boulder: 'a single mossy grey boulder with a small dark cave mouth in it',
+  cottage: 'a single small cottage with a red roof and a round window',
+  pond: 'a small round pond with lily pads and a flower',
+  flower: 'a single large pink flower with a yellow centre on a green stem',
+};

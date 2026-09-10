@@ -146,6 +146,21 @@ export const englishPack: QuestionPack = {
   },
 };
 
+/**
+ * The picture for a word, and the words to draw it by.
+ *
+ * "a" or "an" matters more than it looks: an image model given the bare word
+ * "orange" draws a colour swatch as often as a fruit.
+ */
+function pictureIdFor(entry: WordEntry): string {
+  return `word.${entry.word}`;
+}
+
+function pictureLabelFor(entry: WordEntry): string {
+  const article = /^[aeiou]/.test(entry.word) ? 'an' : 'a';
+  return `${article} ${entry.word}`;
+}
+
 function wordsInBands(bands: number[]): WordEntry[] {
   const matching = WORDS.filter((entry) => bands.includes(entry.band));
   // Unreachable safety net: with every band switched off these levels are not
@@ -165,6 +180,8 @@ function missingLetter(rng: Rng, bands: number[]): Question {
     instruction: 'Which letter is missing?',
     prompt: masked.split('').join(' '),
     emoji: entry.emoji,
+    picture: pictureIdFor(entry),
+    pictureLabel: pictureLabelFor(entry),
     correct: missing,
     distractors: rng.sample(
       alphabet.filter((letter) => letter !== missing),
@@ -183,6 +200,8 @@ function spellWordFor(rng: Rng, entry: WordEntry): Question {
   return makeChoice(rng, {
     instruction: 'How do you spell it?',
     prompt: entry.emoji,
+    picture: pictureIdFor(entry),
+    pictureLabel: pictureLabelFor(entry),
     correct: entry.word,
     distractors: misspellings(rng, entry.word),
     explanation: `It is spelled "${entry.word}".`,

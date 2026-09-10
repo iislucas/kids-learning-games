@@ -23,7 +23,7 @@ export function defaultMediaPack(): MediaPack {
     characters: [
       {
         id: 'sparkle-fox',
-        name: 'Sparkle the Fox',
+        name: 'Momo',
         sheet: {
           src: assetUrl('media/characters/sparkle-fox.svg'),
           cellWidth: 200,

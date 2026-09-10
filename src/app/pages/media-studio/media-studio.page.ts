@@ -28,17 +28,32 @@ import {
 } from '../../media/sprite-sheet';
 import {
   animationsFromPosePlan,
-  buildMapPrompt,
+  buildPropPrompt,
+  buildSingleImagePrompt,
   buildSpriteSheetPrompt,
+  buildTilePrompt,
   DEFAULT_STYLE,
 } from '../../media/sprite-prompt';
-import { approximateBytes, rasterise } from '../../media/raster';
-import { findChallenge } from '../../quiz/challenges';
+import { cutOutSubject, rasterise } from '../../media/raster';
+import { PICTURE_SUBJECTS } from '../../quiz/pictures';
 import { buildMapLayout } from '../../explore/map-layout';
-import { mapSvg } from '../../explore/map-art';
+import {
+  PROP_DESCRIPTIONS,
+  PROP_KINDS,
+  PROP_SIZE,
+  PropKind,
+  TERRAIN_DESCRIPTIONS,
+  TERRAIN_IDS,
+  TILE_SIZE,
+  TerrainId,
+  mapSketchSvg,
+  propSvg,
+  svgDataUrl,
+  terrainTileSvg,
+} from '../../explore/map-art';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 
-type Tab = 'sprites' | 'landscape' | 'sounds' | 'music' | 'keys';
+type Tab = 'sprites' | 'landscape' | 'pictures' | 'sounds' | 'music' | 'keys';
 
 /** Suggested prompts per sound, so the studio is usable without inventing them. */
 const SOUND_PROMPTS: Record<SoundId, string> = {
@@ -71,6 +86,7 @@ export class MediaStudioPage {
   readonly tab = computed<Tab>(() => {
     const value = this.tabParam();
     return value === 'landscape' ||
+      value === 'pictures' ||
       value === 'sounds' ||
       value === 'music' ||
       value === 'keys'
@@ -136,41 +152,73 @@ export class MediaStudioPage {
   // ── Landscape state ────────────────────────────────────────────────────────
 
   /**
-   * The map's own geometry. Both the sketch the model is shown and the prompt
-   * describing it come from here, which is what keeps a generated painting
-   * lined up with the signposts the game actually places.
+   * The map is generated a piece at a time — one seamless tile per kind of
+   * ground, one sprite per kind of scenery — rather than as a single painting.
+   * An image model asked for one tree gets one tree right; asked for a whole
+   * map with forty-seven clearings in exact places, it does not. The pieces are
+   * also small enough to survive the `localStorage` quota, which a full-size
+   * painting is not.
    */
   readonly mapLayout = buildMapLayout();
+  readonly terrains = TERRAIN_IDS;
+  readonly propKinds = PROP_KINDS;
+
   readonly mapStyle = signal(
-    'soft watercolour storybook map, hand-painted, warm and friendly, seen from above',
-  );
-  readonly mapSketch = computed(() =>
-    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(mapSvg(this.mapLayout, { labelled: true }))}`,
-  );
-  readonly generatedMap = signal<string | null>(null);
-  readonly savedMap = computed(() => this.media.pack().map?.src ?? null);
-
-  readonly mapPrompt = computed(() =>
-    buildMapPrompt(
-      this.mapLayout.spots.map((spot) => ({
-        number: spot.index + 1,
-        name: findChallenge(spot.challengeId)?.challenge.name ?? spot.challengeId,
-        region:
-          this.mapLayout.regions.find((region) => region.id === spot.regionId)
-            ?.name ?? spot.regionId,
-      })),
-      this.mapLayout.regions.map((region) => ({
-        name: region.name,
-        terrain: TERRAIN_DESCRIPTIONS[region.terrain],
-      })),
-      this.mapStyle(),
-    ),
+    'soft anime and manga background art, gentle colour gradients, painted light, ' +
+      'clean shapes, warm and friendly, no outlines that look like clip art',
   );
 
-  readonly generatedMapSize = computed(() => {
-    const map = this.generatedMap();
-    return map ? Math.round(approximateBytes(map) / 1024) : 0;
+  /** The whole layout at a glance, so it is obvious what is being dressed. */
+  readonly mapPlan = computed(() => svgDataUrl(mapSketchSvg(this.mapLayout)));
+
+  /** What the game currently uses for each piece, generated or drawn. */
+  readonly tileRows = computed(() =>
+    this.terrains.map((terrain) => ({
+      id: terrain,
+      description: TERRAIN_DESCRIPTIONS[terrain],
+      generated: !!this.media.mapTile(terrain),
+      src: this.media.mapTile(terrain) ?? svgDataUrl(terrainTileSvg(terrain)),
+    })),
+  );
+
+  readonly propRows = computed(() =>
+    this.propKinds.map((kind) => ({
+      id: kind,
+      description: PROP_DESCRIPTIONS[kind],
+      generated: !!this.media.mapProp(kind),
+      src: this.media.mapProp(kind) ?? svgDataUrl(propSvg(kind)),
+    })),
+  );
+
+  readonly hasGeneratedMapArt = computed(
+    () =>
+      this.tileRows().some((row) => row.generated) ||
+      this.propRows().some((row) => row.generated),
+  );
+
+  // ── Question pictures ──────────────────────────────────────────────────────
+
+  /**
+   * Every question that wants a picture, gathered by asking each pack for a lot
+   * of questions and keeping the ones that name one. Spelling is the case that
+   * needs it: a child who cannot yet read the word cannot be shown the word.
+   */
+  readonly pictureRows = computed(() => {
+    this.media.pictures();
+    return PICTURE_SUBJECTS.map((subject) => ({
+      ...subject,
+      src: this.media.picture(subject.id) ?? null,
+    }));
   });
+
+  readonly pictureCount = computed(
+    () => this.pictureRows().filter((row) => row.src).length,
+  );
+
+  readonly pictureStyle = signal(
+    'soft anime and manga illustration for young children, gentle colour ' +
+      'gradients, painted light, friendly and clear',
+  );
 
   setTab(tab: Tab): void {
     this.tabParam.set(tab);
@@ -230,7 +278,7 @@ export class MediaStudioPage {
     this.plan.set(normalised.plan);
     this.previewSheet.set({
       id: 'custom',
-      name: 'My character',
+      name: 'Momo',
       sheet: normalised.sheet,
       animations: {
         idle: { frames: frameMap.idle, fps: 1.4, loop: true },
@@ -258,56 +306,106 @@ export class MediaStudioPage {
 
   // ── Landscape ──────────────────────────────────────────────────────────────
 
-  async generateMap(): Promise<void> {
-    await this.run('Painting the landscape…', async () => {
-      // The sketch goes as a PNG rather than the SVG: it is what the model can
-      // read, and rendering it here means what is sent is exactly what is shown
-      // on the page above the button.
-      const sketch = await rasterise(this.mapSketch(), {
-        width: this.mapLayout.width,
-        height: this.mapLayout.height,
-        type: 'image/png',
-        background: '#ffffff',
-      });
-      const image = await this.gemini.generateImage(this.mapPrompt(), {
-        dataUrl: sketch,
-        mimeType: 'image/png',
-      });
-      // Down to the size the map is actually drawn at before it goes anywhere
-      // near localStorage — a full-size PNG data URI will trip the quota.
-      this.generatedMap.set(
-        await rasterise(image.dataUrl, {
-          width: this.mapLayout.width,
-          height: this.mapLayout.height,
-          type: 'image/jpeg',
-          quality: 0.82,
-          background: '#cdeccb',
-        }),
+  /**
+   * A seamless ground tile.
+   *
+   * "Seamless" is the whole job here and the only thing worth checking in the
+   * result: a tile with a visible edge repeats into a grid, which is far more
+   * obvious than any amount of pretty texture is nice.
+   */
+  async generateTile(terrain: string): Promise<void> {
+    await this.run(`Making the ${terrain} ground…`, async () => {
+      const image = await this.gemini.generateImage(
+        buildTilePrompt(TERRAIN_DESCRIPTIONS[terrain as TerrainId], this.mapStyle()),
       );
+      const src = await rasterise(image.dataUrl, {
+        width: TILE_SIZE,
+        height: TILE_SIZE,
+        type: 'image/jpeg',
+        quality: 0.82,
+      });
+      this.media.setMapTile(terrain, { src });
+      this.notice.set(`Saved the ${terrain} ground.`);
     });
   }
 
-  saveMap(): void {
-    const map = this.generatedMap();
-    if (!map) return;
-    try {
-      this.media.setMap({ src: map });
-      this.notice.set('Saved! The map now uses your landscape.');
-      this.error.set(null);
-    } catch (error) {
-      this.error.set(messageOf(error));
-    }
+  /** One scenery sprite, on a transparent background so it sits on any tile. */
+  async generateProp(kind: string): Promise<void> {
+    await this.run(`Drawing the ${kind}…`, async () => {
+      const image = await this.gemini.generateImage(
+        buildPropPrompt(PROP_DESCRIPTIONS[kind as PropKind], this.mapStyle()),
+      );
+      // Knocking the flat background out to transparency is the same trick the
+      // sprite sheet uses; without it every prop sits in a white box.
+      const source = imageToImageData(await loadImage(image.dataUrl));
+      const cut = cutOutSubject(source, { padding: 6 });
+      const src = await rasterise(cut, {
+        width: PROP_SIZE * 2,
+        height: PROP_SIZE * 2,
+        type: 'image/png',
+      });
+      this.media.setMapProp(kind, { src });
+      this.notice.set(`Saved the ${kind}.`);
+    });
   }
 
-  clearMap(): void {
-    try {
-      this.media.setMap(null);
-      this.generatedMap.set(null);
-      this.notice.set('Back to the drawn landscape.');
-      this.error.set(null);
-    } catch (error) {
-      this.error.set(messageOf(error));
+  clearMapArt(): void {
+    this.media.clearMap();
+    this.notice.set('Back to the drawn landscape.');
+  }
+
+  // ── Question pictures ──────────────────────────────────────────────────────
+
+  async generatePicture(subject: { id: string; label: string }): Promise<void> {
+    await this.run(`Drawing "${subject.label}"…`, async () => {
+      const image = await this.gemini.generateImage(
+        buildSingleImagePrompt(
+          `A single clear picture of ${subject.label}, filling the frame`,
+          this.pictureStyle(),
+        ),
+      );
+      const source = imageToImageData(await loadImage(image.dataUrl));
+      const cut = cutOutSubject(source, { padding: 8 });
+      const src = await rasterise(cut, {
+        width: 256,
+        height: 256,
+        type: 'image/png',
+      });
+      this.media.setPicture(subject.id, { src });
+    });
+  }
+
+  /**
+   * Everything missing, one after another. Forty-odd calls is a lot to start by
+   * accident, so the button says how many and the work stops at the first
+   * failure rather than burning through a rate limit.
+   */
+  async generateMissingPictures(): Promise<void> {
+    const missing = this.pictureRows().filter((row) => !row.src);
+    await this.run(`Drawing ${missing.length} pictures…`, async () => {
+      for (const [index, subject] of missing.entries()) {
+        this.busy.set(`Drawing "${subject.label}" (${index + 1} of ${missing.length})…`);
+        const image = await this.gemini.generateImage(
+          buildSingleImagePrompt(
+            `A single clear picture of ${subject.label}, filling the frame`,
+            this.pictureStyle(),
+          ),
+        );
+        const source = imageToImageData(await loadImage(image.dataUrl));
+        const cut = cutOutSubject(source, { padding: 8 });
+        this.media.setPicture(subject.id, {
+          src: await rasterise(cut, { width: 256, height: 256, type: 'image/png' }),
+        });
+      }
+      this.notice.set(`Drew ${missing.length} pictures.`);
+    });
+  }
+
+  clearPictures(): void {
+    for (const row of this.pictureRows()) {
+      if (row.src) this.media.setPicture(row.id, null);
     }
+    this.notice.set('Pictures removed; questions show their emoji again.');
   }
 
   // ── Sounds ─────────────────────────────────────────────────────────────────
@@ -411,15 +509,6 @@ export class MediaStudioPage {
     }
   }
 }
-
-/** How the prompt should describe each kind of ground. */
-const TERRAIN_DESCRIPTIONS: Record<string, string> = {
-  hills: 'rolling grassy hills with little winding paths',
-  water: 'a chain of bright blue ponds with reeds and lily pads',
-  forest: 'a friendly wood full of round leafy trees',
-  village: 'a tiny village of little cottages with a cobbled square',
-  meadow: 'a wildflower meadow with butterflies and long grass',
-};
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
