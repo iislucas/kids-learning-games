@@ -1,4 +1,5 @@
-import { MediaPack } from './media.types';
+import { MediaPack, SoundDef, SoundId } from './media.types';
+import { CHARACTER_VOICES, VOICED_EVENTS, voiceClipPath } from './voice-lines';
 
 /**
  * Resolves an asset path against the document's base href.
@@ -44,6 +45,7 @@ export function defaultMediaPack(): MediaPack {
       {
         id: 'momo',
         name: 'Momo',
+        voice: voiceFor('momo'),
         sheet: {
           src: assetUrl('media/characters/fox-poses.webp'),
           // The cell size is only ever used as an aspect ratio, so these are the
@@ -79,6 +81,7 @@ export function defaultMediaPack(): MediaPack {
       {
         id: 'kai',
         name: 'Kai',
+        voice: voiceFor('kai'),
         sheet: {
           src: assetUrl('media/characters/dragon-poses.webp'),
           cellWidth: 265,
@@ -168,4 +171,22 @@ export function defaultMediaPack(): MediaPack {
       'word.umbrella': { src: assetUrl('media/pictures/umbrella.webp') },
     },
   };
+}
+
+/**
+ * A character's voiced clips, as the audio service wants them. The lines are
+ * listed in `voice-lines.ts` and the files follow from them by name, so there
+ * is no second list here to fall out of step.
+ */
+function voiceFor(characterId: string): Partial<Record<SoundId, SoundDef[]>> | undefined {
+  const voice = CHARACTER_VOICES[characterId];
+  if (!voice) return undefined;
+  const clips: Partial<Record<SoundId, SoundDef[]>> = {};
+  for (const event of VOICED_EVENTS) {
+    clips[event] = voice.lines[event].map((_, index) => ({
+      src: assetUrl(voiceClipPath(characterId, event, index)),
+      volume: 0.9,
+    }));
+  }
+  return clips;
 }

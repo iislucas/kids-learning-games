@@ -77,6 +77,13 @@ export interface CharacterDef {
   sheet: SpriteSheet;
   animations: Record<AnimationName, Animation>;
   walk?: WalkSheet;
+  /**
+   * Short clips in this character's own voice, played just after the shared
+   * sound for the same moment. Several per moment, so a round of ten correct
+   * answers does not hear the same line ten times. Optional: a character
+   * without one still has the shared sounds.
+   */
+  voice?: Partial<Record<SoundId, SoundDef[]>>;
 }
 
 export interface SoundDef {
