@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CHALLENGES, findChallenge } from '../quiz/challenges';
+import { QUESTION_PACKS } from '../quiz/pack-registry';
 import {
   PROP_KINDS,
   TERRAIN_IDS,
@@ -15,6 +16,7 @@ import {
   MAP_WIDTH,
   SPOT_RADIUS,
   buildMapLayout,
+  regionForRound,
   spotAt,
   spotFor,
 } from './map-layout';
@@ -187,5 +189,61 @@ describe('the map art', () => {
       const first = spots.find((spot) => spot.index === 0)!;
       expect(track.startsWith(`M ${first.x} ${first.y}`)).toBe(true);
     }
+  });
+});
+
+describe('regionForRound', () => {
+  it('puts every challenge in the region its spot is in', () => {
+    for (const spot of layout.spots) {
+      const ref = findChallenge(spot.challengeId)!;
+      const region = regionForRound(layout, {
+        packId: ref.pack.id,
+        level: 1,
+        challengeId: spot.challengeId,
+      });
+      expect(region?.id, spot.challengeId).toBe(spot.regionId);
+    }
+  });
+
+  it('gives every level of every pack a region of that pack', () => {
+    for (const pack of QUESTION_PACKS) {
+      for (const level of pack.levels) {
+        const region = regionForRound(layout, { packId: pack.id, level: level.number });
+        expect(region, `${pack.id} level ${level.number}`).toBeDefined();
+        expect(region!.packId).toBe(pack.id);
+      }
+    }
+  });
+
+  /** Maths is split three ways, so the level has to pick the right one. */
+  it('sends each maths level to the place that kind of sum lives', () => {
+    const at = (level: number) =>
+      regionForRound(layout, { packId: 'maths', level })?.id;
+    expect(at(1)).toBe('adding');
+    expect(at(2)).toBe('adding');
+    expect(at(3)).toBe('subtracting');
+    expect(at(5)).toBe('tables');
+  });
+
+  it('claims each level of a split pack at most once', () => {
+    for (const pack of QUESTION_PACKS) {
+      const claimed = layout.regions
+        .filter((region) => region.packId === pack.id)
+        .flatMap((region) => region.levels ?? []);
+      expect(new Set(claimed).size, pack.id).toBe(claimed.length);
+    }
+  });
+
+  it('falls back to the pack when a challenge is unknown', () => {
+    const region = regionForRound(layout, {
+      packId: 'french',
+      level: 1,
+      challengeId: 'not.a.challenge',
+    });
+    expect(region?.packId).toBe('french');
+  });
+
+  it('finds nothing for a pack the map does not have', () => {
+    expect(regionForRound(layout, { packId: 'nope', level: 1 })).toBeUndefined();
   });
 });

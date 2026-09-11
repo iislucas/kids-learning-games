@@ -15,6 +15,7 @@ import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
+import { storedSignal } from '../../core/stored-signal';
 import { BADGES, BadgeId } from '../../core/mastery';
 import { MasteryService } from '../../core/mastery.service';
 import { Prize } from '../../core/prizes';
@@ -171,6 +172,14 @@ export class MapPage {
     }),
   );
 
+  /**
+   * Where she last stopped, kept across visits. The `at` url parameter only
+   * knows about spots, and only survives a trip that carried it — this is what
+   * puts her back where she was after the games list, the settings, or
+   * tomorrow, rather than at the crossroads every time.
+   */
+  private readonly lastPosition = storedSignal<Point | null>('klg.mapAt', null);
+
   readonly position = signal<Point>(this.startingPoint());
   readonly facing = signal<Direction>('s');
   readonly moving = signal(false);
@@ -280,10 +289,19 @@ export class MapPage {
     });
   }
 
-  /** Where she starts: the spot she was last on, or the crossroads. */
+  /**
+   * Where she starts: the spot named in the url, else wherever she last
+   * stopped, else the crossroads.
+   */
   private startingPoint(): Point {
     const spot = this.atParam() ? spotFor(this.layout, this.atParam()) : undefined;
-    return spot ? { x: spot.x, y: spot.y } : { ...this.layout.start };
+    if (spot) return { x: spot.x, y: spot.y };
+    const last = this.lastPosition();
+    if (last && Number.isFinite(last.x) && Number.isFinite(last.y)) {
+      // Clamped, in case it was saved against a bigger map than this one.
+      return clampToMap(last, { width: this.mapWidth, height: this.mapHeight });
+    }
+    return { ...this.layout.start };
   }
 
   private closedReason(ref: ChallengeRef): string {
@@ -389,6 +407,7 @@ export class MapPage {
   /** Standing on a spot opens it; standing on grass just stops. */
   private arrive(at: Point): void {
     this.target = null;
+    this.lastPosition.set({ x: Math.round(at.x), y: Math.round(at.y) });
     const spot = spotAt(this.layout, at.x, at.y);
     if (!spot) {
       this.atParam.set('');

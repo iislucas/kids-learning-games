@@ -224,6 +224,19 @@ Three things make the map the collection screen as well as the menu:
 - **A closed place stays on the map**, struck through, naming the setting that
   closed it.
 
+The map and the game are **one place**, not a map and then a separate quiz
+screen. A question is asked on the ground of the region it belongs to — the 7×
+table in the hills, a French round on the village cobbles — using the same
+tile the map uses, generated or drawn. A challenge belongs to its spot's region;
+an ordinary round from the games list goes to its pack's region, and maths,
+which is split three ways, picks by level (`regionForRound` in
+[`map-layout.ts`](src/app/explore/map-layout.ts)).
+
+**✕ goes back to the map, where she was standing** — onto the challenge's spot
+after a challenge, and otherwise to wherever she last stopped. That position is
+kept across visits (`klg.mapAt`), because the `at` url parameter only knows
+about spots and only survives a trip that carried it.
+
 Three files, all pure and Angular-free:
 
 - [`map-layout.ts`](src/app/explore/map-layout.ts) — the regions, and a

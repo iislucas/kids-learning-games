@@ -23,6 +23,8 @@ import { findPack } from '../../quiz/pack-registry';
 import { ChallengeRef, findChallenge, isChallengeAvailable } from '../../quiz/challenges';
 import { QuestionPack } from '../../quiz/question.types';
 import { PackOptionsService } from '../../quiz/pack-options.service';
+import { buildMapLayout, regionForRound } from '../../explore/map-layout';
+import { cssUrl, svgDataUrl, terrainTileSvg } from '../../explore/map-art';
 import { QuizSession, QuizSnapshot } from '../../quiz/quiz-session';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 import { ConfettiBurst } from '../../components/confetti-burst/confetti-burst';
@@ -171,6 +173,35 @@ export class PlayPage {
 
   readonly homeHref = computed(() => this.router.hrefForView(Views.Home));
   readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));
+
+  private readonly layout = buildMapLayout();
+
+  /**
+   * The part of the map this round belongs to. The question is asked on that
+   * region's own ground, so a round of the 7× table happens in the hills and a
+   * French round in the village — the map and the game stay one place rather
+   * than a map and then a separate quiz screen.
+   */
+  readonly region = computed(() => {
+    const pack = this.pack();
+    if (!pack) return null;
+    return (
+      regionForRound(this.layout, {
+        packId: pack.id,
+        level: this.level(),
+        challengeId: this.challenge()?.id,
+      }) ?? null
+    );
+  });
+
+  /** That region's ground tile — generated if the pack has one, else drawn. */
+  readonly groundUrl = computed(() => {
+    const region = this.region();
+    if (!region) return null;
+    return cssUrl(
+      this.media.mapTile(region.terrain) ?? svgDataUrl(terrainTileSvg(region.terrain)),
+    );
+  });
 
   /** Back to where she was standing, rather than to the top of the map. */
   readonly mapHref = computed(() => {

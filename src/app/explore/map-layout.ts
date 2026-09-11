@@ -32,6 +32,13 @@ export interface MapRegion {
   ry: number;
   /** Terrain the art should draw here. */
   terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves';
+  /**
+   * Which levels of an ordinary round belong here, for a pack split across
+   * several regions. Maths is: adding happens at the ponds and times tables in
+   * the hills, so a round of level-5 times tables should feel like the hills.
+   * Omit it on a pack's only region.
+   */
+  levels?: number[];
 }
 
 export interface MapSpot {
@@ -77,6 +84,7 @@ const REGION_PLANS: RegionPlan[] = [
     rx: 390,
     ry: 210,
     terrain: 'hills',
+    levels: [5],
     perRow: 4,
   },
   {
@@ -91,6 +99,7 @@ const REGION_PLANS: RegionPlan[] = [
     rx: 380,
     ry: 210,
     terrain: 'water',
+    levels: [1, 2, 4],
     perRow: 4,
   },
   {
@@ -105,6 +114,7 @@ const REGION_PLANS: RegionPlan[] = [
     rx: 380,
     ry: 200,
     terrain: 'caves',
+    levels: [3],
     perRow: 4,
   },
   {
@@ -230,4 +240,26 @@ export function spotAt(
     }
   }
   return best;
+}
+
+/**
+ * The region a round is played in, so the game can look like the place it came
+ * from.
+ *
+ * A challenge belongs to the region its spot is in. An ordinary round from the
+ * games list has no spot, so it goes to the region of its pack — and for a pack
+ * split across several regions, to the one that claims its level.
+ */
+export function regionForRound(
+  layout: MapLayout,
+  round: { packId: string; level: number; challengeId?: string | null },
+): MapRegion | undefined {
+  if (round.challengeId) {
+    const spot = spotFor(layout, round.challengeId);
+    if (spot) return layout.regions.find((region) => region.id === spot.regionId);
+  }
+  const regions = layout.regions.filter((region) => region.packId === round.packId);
+  return (
+    regions.find((region) => region.levels?.includes(round.level)) ?? regions[0]
+  );
 }
