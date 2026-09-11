@@ -1,5 +1,8 @@
 .play {
   position: relative;
+  /* A stacking context of its own, so the ground below can sit at z-index -1
+     behind everything here without dropping behind the page itself. */
+  isolation: isolate;
   max-width: 620px;
   margin: 0 auto;
   padding: 8px 14px 32px;
@@ -16,6 +19,26 @@
     position: relative;
     z-index: 1;
   }
+}
+
+/* The region's own ground, filling the screen behind the question. A pale wash
+   over it keeps the text that sits straight on the background readable; the
+   question and the answers are on white cards and need no help. */
+.play--grounded::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0.5) 40%,
+      rgba(255, 255, 255, 0.62) 100%
+    ),
+    var(--ground);
+  background-size: auto, 256px 256px;
+  background-repeat: no-repeat, repeat;
 }
 
 .playbar {

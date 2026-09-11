@@ -1,5 +1,10 @@
 @if (pack(); as pack) {
-  <div class="play" [style.--accent]="accentColour()">
+  <div
+    class="play"
+    [class.play--grounded]="!!groundUrl()"
+    [style.--accent]="accentColour()"
+    [style.--ground]="groundUrl()"
+  >
     <app-prize-backdrop
       [prizes]="collectedPrizes()"
       [highlightIds]="prizesWonThisRound()"
@@ -9,9 +14,9 @@
     <header class="playbar">
       <a
         class="playbar__back"
-        [href]="homeHref()"
-        (click)="go($event, homeHref())"
-        aria-label="Back to the games"
+        [href]="mapHref()"
+        (click)="go($event, mapHref())"
+        aria-label="Back to the map"
         >✕</a
       >
       <div class="playbar__title">
