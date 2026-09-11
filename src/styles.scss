@@ -37,6 +37,14 @@ body {
   min-height: 100%;
 }
 
+/* No blue flash on tap. Mobile browsers highlight anything tappable, and the
+   map's whole world is one tappable surface, so every tap on the ground lit up
+   the entire map. The property is inherited, so setting it here covers every
+   element; buttons keep their own pressed-in :active feedback. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: var(--font);
   color: var(--ink);

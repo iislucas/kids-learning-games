@@ -332,6 +332,16 @@ looks finished with no API keys at all. It comes from two places:
 - **The sounds are synthesised** by
   [`scripts/generate-default-media.mts`](scripts/generate-default-media.mts),
   which needs no key. Edit it and run `pnpm run gen:media`.
+- **The characters' voices are generated** with Gemini text-to-speech by
+  [`scripts/generate-voices.mts`](scripts/generate-voices.mts). Momo and Kai
+  each have a few short lines for a right answer, a gentle "not quite", a prize
+  and a finished round, in their own voice. A line plays a beat after the shared
+  chime — the chime is the instant "that was right", the voice is the character
+  reacting — and never the same one twice running. The lines live in
+  [`voice-lines.ts`](src/app/media/voice-lines.ts), which the app also reads for
+  the file paths; edit a line and run `pnpm run gen:voices` (it makes only the
+  missing clips unless given `--force`). Needs a Gemini key and macOS
+  `afconvert`, which encodes them as AAC at about a fifth of the WAV size.
 
 Drawing the character programmatically was the earlier approach and has been
 retired: a synthesised WAV is a perfectly good sound effect, but drawn-by-code

@@ -9,7 +9,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:watch": "ng test --watch",
-    "gen:media": "node scripts/generate-default-media.mts"
+    "gen:media": "node scripts/generate-default-media.mts",
+    "gen:voices": "node scripts/generate-voices.mts"
   },
   "private": true,
   "engines": {

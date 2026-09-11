@@ -4,6 +4,7 @@ import { ANIMATION_NAMES, SOUND_IDS } from './media.types';
 import { DIRECTIONS } from '../explore/explorer';
 import { PROP_KINDS, TERRAIN_IDS } from '../explore/map-art';
 import { buildMapLayout } from '../explore/map-layout';
+import { CHARACTER_VOICES, VOICED_EVENTS, voiceClipPath } from './voice-lines';
 
 const pack = defaultMediaPack();
 
@@ -85,4 +86,53 @@ describe('the default media pack', () => {
     expect(ids.length).toBeGreaterThan(0);
     for (const id of ids) expect(id.startsWith('word.')).toBe(true);
   });
+});
+
+/**
+ * Each character's voice. The clips are generated from `voice-lines.ts` and
+ * the pack derives their paths from the same file, so these checks are about
+ * the two agreeing — and about every moment actually having something to say.
+ */
+describe('character voices', () => {
+  it('gives every shipped character a voice', () => {
+    for (const character of pack.characters) {
+      expect(CHARACTER_VOICES[character.id], `${character.id} has no voice`).toBeDefined();
+      expect(character.voice, `${character.id} voice not in the pack`).toBeDefined();
+    }
+  });
+
+  for (const [id, voice] of Object.entries(CHARACTER_VOICES)) {
+    describe(id, () => {
+      it('has at least one line for every voiced moment', () => {
+        for (const event of VOICED_EVENTS) {
+          expect(voice.lines[event].length, `${id} ${event}`).toBeGreaterThan(0);
+          for (const line of voice.lines[event]) expect(line.trim().length).toBeGreaterThan(0);
+        }
+      });
+
+      /** Ten right answers a round: one line would be heard ten times. */
+      it('has more than one line for a right answer', () => {
+        expect(voice.lines.correct.length).toBeGreaterThan(1);
+      });
+
+      it('points the pack at the clips the generator writes', () => {
+        const character = pack.characters.find((c) => c.id === id)!;
+        for (const event of VOICED_EVENTS) {
+          const clips = character.voice?.[event] ?? [];
+          expect(clips.length).toBe(voice.lines[event].length);
+          clips.forEach((clip, index) => {
+            expect(clip.src.endsWith(voiceClipPath(id, event, index))).toBe(true);
+          });
+        }
+      });
+
+      it('keeps every line short enough to say in a moment', () => {
+        for (const event of VOICED_EVENTS) {
+          for (const line of voice.lines[event]) {
+            expect(line.split(/\s+/).length, `"${line}"`).toBeLessThanOrEqual(5);
+          }
+        }
+      });
+    });
+  }
 });

@@ -1,7 +1,7 @@
 import { Injectable, effect, inject, untracked } from '@angular/core';
 import { Howl, Howler } from 'howler';
 import { MediaService } from '../media/media.service';
-import { SoundId } from '../media/media.types';
+import { SoundDef, SoundId } from '../media/media.types';
 import { storedSignal } from './stored-signal';
 
 /**
@@ -12,6 +12,9 @@ import { storedSignal } from './stored-signal';
  * pooled playback (so rapid-fire correct answers overlap instead of cutting
  * each other off) is the whole reason not to use bare Audio elements.
  */
+/** How long after the shared sound a character's own line starts. */
+const VOICE_DELAY_MS = 140;
+
 @Injectable({ providedIn: 'root' })
 export class AudioService {
   private readonly media = inject(MediaService);
@@ -21,6 +24,11 @@ export class AudioService {
   readonly musicEnabled = storedSignal('klg.audio.music', false);
 
   private readonly cache = new Map<string, Howl>();
+  /** The last line said for each moment, so it is never said twice running. */
+  private readonly lastVoice = new Map<SoundId, string>();
+  /** The line currently being said, so a new one never talks over it. */
+  private speaking: Howl | null = null;
+  private voiceTimer: ReturnType<typeof setTimeout> | null = null;
   private music: Howl | null = null;
   private musicSrc: string | null = null;
 
@@ -41,9 +49,38 @@ export class AudioService {
 
   play(id: SoundId): void {
     if (!this.soundsEnabled()) return;
-    const def = this.media.sound(id);
-    if (!def?.src) return;
+    this.howlFor(this.media.sound(id))?.play();
+    this.sayLineFor(id);
+  }
 
+  /**
+   * The character's own voice for this moment, if they have one.
+   *
+   * It comes a beat after the shared sound, so the chime still lands first as
+   * the instant "that was right", and the voice follows as the character
+   * reacting to it. A random line, never the one said last time.
+   */
+  private sayLineFor(id: SoundId): void {
+    const lines = this.media.character().voice?.[id];
+    if (!lines?.length) return;
+
+    const last = this.lastVoice.get(id);
+    const fresh = lines.length > 1 ? lines.filter((line) => line.src !== last) : lines;
+    const line = fresh[Math.floor(Math.random() * fresh.length)];
+    this.lastVoice.set(id, line.src);
+
+    if (this.voiceTimer !== null) clearTimeout(this.voiceTimer);
+    this.voiceTimer = setTimeout(() => {
+      this.voiceTimer = null;
+      if (!this.soundsEnabled()) return;
+      this.speaking?.stop();
+      this.speaking = this.howlFor(line);
+      this.speaking?.play();
+    }, VOICE_DELAY_MS);
+  }
+
+  private howlFor(def: SoundDef | undefined): Howl | null {
+    if (!def?.src) return null;
     try {
       let howl = this.cache.get(def.src);
       if (!howl) {
@@ -58,9 +95,10 @@ export class AudioService {
         });
         this.cache.set(def.src, howl);
       }
-      howl.play();
+      return howl;
     } catch {
       // A missing or malformed asset must never break the game loop.
+      return null;
     }
   }
 
@@ -114,6 +152,7 @@ export class AudioService {
       howl.unload();
     }
     this.cache.clear();
+    this.speaking = null;
   }
 
   /** Muted globally, e.g. when the tab is hidden. */
