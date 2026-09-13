@@ -1,5 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { ProgressService, localDayKey } from './progress.service';
+import {
+  ProgressService,
+  ProgressState,
+  backfillPrizePlaces,
+  localDayKey,
+} from './progress.service';
 import { PRIZES } from './prizes';
 
 function makeService(): ProgressService {
@@ -268,5 +273,70 @@ describe('localDayKey', () => {
 
   it('pads single-digit months and days', () => {
     expect(localDayKey(new Date('2026-01-02T10:00:00'))).toBe('2026-01-02');
+  });
+});
+
+describe('backfillPrizePlaces', () => {
+  const base: ProgressState = {
+    stars: 0,
+    answered: 0,
+    correct: 0,
+    bestStreak: 0,
+    unlockedPrizeIds: [],
+    prizePlaces: {},
+    packStats: {},
+    lastPlayedDay: null,
+    dayStreak: 0,
+  };
+  const ids = PRIZES.slice(0, 12).map((prize) => prize.id);
+
+  it('shares placeless prizes out by how much each game was played', () => {
+    const filled = backfillPrizePlaces({
+      ...base,
+      unlockedPrizeIds: ids,
+      packStats: {
+        maths: { answered: 90, correct: 60, bestLevel: 1 },
+        english: { answered: 40, correct: 30, bestLevel: 1 },
+      },
+    });
+    const places = ids.map((id) => filled.prizePlaces[id]);
+    expect(places.filter((p) => p === 'pack:maths')).toHaveLength(8);
+    expect(places.filter((p) => p === 'pack:english')).toHaveLength(4);
+  });
+
+  it('leaves a prize that already has a place where it is', () => {
+    const filled = backfillPrizePlaces({
+      ...base,
+      unlockedPrizeIds: ids,
+      prizePlaces: { [ids[0]]: 'french.colours' },
+      packStats: { maths: { answered: 5, correct: 5, bestLevel: 1 } },
+    });
+    expect(filled.prizePlaces[ids[0]]).toBe('french.colours');
+    expect(filled.prizePlaces[ids[1]]).toBe('pack:maths');
+  });
+
+  it('changes nothing when there is nothing to fill or nothing to go on', () => {
+    const empty = { ...base, unlockedPrizeIds: ids };
+    expect(backfillPrizePlaces(empty)).toBe(empty);
+    expect(backfillPrizePlaces(base)).toBe(base);
+  });
+
+  it('writes the places back when the service loads', () => {
+    localStorage.clear();
+    localStorage.setItem(
+      'klg.progress',
+      JSON.stringify({
+        ...base,
+        unlockedPrizeIds: ids,
+        packStats: { science: { answered: 3, correct: 3, bestLevel: 1 } },
+      }),
+    );
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [ProgressService] });
+    const service = TestBed.inject(ProgressService);
+    expect(service.prizePlaces()[ids[0]]).toBe('pack:science');
+    expect(JSON.parse(localStorage.getItem('klg.progress')!).prizePlaces[ids[0]]).toBe(
+      'pack:science',
+    );
   });
 });

@@ -54,6 +54,7 @@ import {
   MapRegion,
   MapSpot,
   buildMapLayout,
+  regionIdForPlace,
   spotAt,
   spotFor,
 } from '../../explore/map-layout';
@@ -218,36 +219,45 @@ export class MapPage {
   /**
    * Prizes shown where they were won.
    *
-   * A prize won in an ordinary round only knows its pack, so it lands somewhere
-   * in that region rather than at a spot. Anything won before places were
-   * recorded has no home at all and gathers at the crossroads — which reads
+   * One won at a spot sits just beside that spot. One won in an ordinary round
+   * only knows its region, so it lies somewhere out in that region's ground.
+   * Only a prize with no home at all gathers at the crossroads — which reads
    * fine, as the place she set out from.
    */
   readonly placedPrizes = computed<PlacedPrize[]>(() => {
     const places = this.progress.prizePlaces();
     return this.progress.unlockedPrizes().map((prize) => {
-      const anchor = this.anchorFor(places[prize.id]);
-      // Scattered around their anchor so several at one spot do not stack.
+      const place = places[prize.id];
       const angle = noise(`${prize.id}-angle`) * Math.PI * 2;
-      const distance = 62 + noise(`${prize.id}-dist`) * 46;
+      const spot = place ? spotFor(this.layout, place) : undefined;
+      if (spot) {
+        // Around the spot, so several won at one place do not stack.
+        const distance = 62 + noise(`${prize.id}-dist`) * 46;
+        return {
+          prize,
+          x: Math.round(spot.x + Math.cos(angle) * distance),
+          y: Math.round(spot.y + Math.sin(angle) * distance * 0.7),
+        };
+      }
+      const regionId = regionIdForPlace(this.layout, place, prize.id);
+      const region = this.layout.regions.find((r) => r.id === regionId);
+      if (region) {
+        // Anywhere in the region's ground, clear of its outer edge.
+        const reach = 0.3 + noise(`${prize.id}-dist`) * 0.55;
+        return {
+          prize,
+          x: Math.round(region.cx + Math.cos(angle) * region.rx * reach),
+          y: Math.round(region.cy + Math.sin(angle) * region.ry * reach),
+        };
+      }
+      const distance = 40 + noise(`${prize.id}-dist`) * 50;
       return {
         prize,
-        x: Math.round(anchor.x + Math.cos(angle) * distance),
-        y: Math.round(anchor.y + Math.sin(angle) * distance * 0.7),
+        x: Math.round(this.layout.start.x + Math.cos(angle) * distance),
+        y: Math.round(this.layout.start.y + Math.sin(angle) * distance * 0.7),
       };
     });
   });
-
-  private anchorFor(place: string | undefined): Point {
-    if (place) {
-      const spot = spotFor(this.layout, place);
-      if (spot) return { x: spot.x, y: spot.y };
-      const packId = place.startsWith('pack:') ? place.slice(5) : null;
-      const region = this.layout.regions.find((r) => r.packId === packId);
-      if (region) return { x: region.cx, y: region.cy };
-    }
-    return this.layout.start;
-  }
 
   /** The signpost card that is open, if any. */
   readonly openSpot = computed<SpotView | null>(

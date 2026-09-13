@@ -1,68 +1,70 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { Prize } from '../../core/prizes';
+import { Rect, stackSlots } from '../../core/prize-stack';
 
 interface Placed {
   id: string;
   emoji: string;
-  name: string;
   left: number;
   top: number;
-  size: number;
   rotation: number;
   isNew: boolean;
 }
 
-/** Slots across the screen. Enough columns that 30 prizes never overlap. */
-const COLUMNS = 5;
-const ROWS = 6;
+interface Geometry {
+  width: number;
+  height: number;
+  obstacles: Rect[];
+}
 
-/** Stable per-id jitter, so a prize never moves between renders. */
-function hash(text: string): number {
+/** Marks the things a prize must never sit underneath. */
+export const PRIZE_AVOID_ATTRIBUTE = 'data-prize-avoid';
+
+/** Cell size for the stack; the emoji itself is drawn a little smaller. */
+const CELL = 48;
+
+/** Stable per-id tilt, so a prize never wobbles between renders. */
+function tilt(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return (h >>> 0) / 4294967296;
+  return Math.round(((h >>> 0) / 4294967296 - 0.5) * 30);
 }
 
 /**
- * The order slots get filled.
+ * Draws the prizes already won here, piled up behind the game.
  *
- * Filling row by row would pile the first dozen prizes into the top of the
- * screen and leave the bottom empty. Ordering by the golden-ratio sequence
- * spreads each new prize far from the last, so the backdrop looks balanced at
- * every collection size while each prize still keeps one fixed slot forever.
- */
-const SLOT_ORDER: number[] = Array.from(
-  { length: COLUMNS * ROWS },
-  (_, i) => i,
-).sort((a, b) => {
-  const key = (n: number) => ((n + 1) * 0.618033988749895) % 1;
-  return key(a) - key(b);
-});
-
-/**
- * Draws the prizes already won as a faint scatter behind the game.
- *
- * Prizes fill fixed slots in the order they were earned, rather than being
- * placed randomly: that way the backdrop visibly grows outward as the
- * collection does, and an existing prize never jumps to a new spot when a new
- * one arrives. Winning one mid-round pops it into place, so the reward is
- * felt where she is actually looking.
+ * They are the real thing, not a watermark: fully opaque, so she can see how
+ * much she has done. That is only bearable because none of them ever sits
+ * under a card — the component measures everything in its container marked
+ * `data-prize-avoid` and stacks the prizes, from the bottom up, into the
+ * space that is left (see `prize-stack.ts`). Winning one mid-round pops it
+ * into place, so the reward is felt where she is actually looking.
  */
 @Component({
   selector: 'app-prize-backdrop',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="backdrop" aria-hidden="true">
+    <div class="backdrop" #backdrop aria-hidden="true">
       @for (item of placed(); track item.id) {
         <span
           class="prize"
           [class.prize--new]="item.isNew"
-          [style.left.%]="item.left"
-          [style.top.%]="item.top"
-          [style.font-size.px]="item.size"
+          [style.left.px]="item.left"
+          [style.top.px]="item.top"
           [style.--rot]="item.rotation + 'deg'"
           >{{ item.emoji }}</span
         >
@@ -81,36 +83,37 @@ const SLOT_ORDER: number[] = Array.from(
 
       .prize {
         position: absolute;
-        transform: translate(-50%, -50%) rotate(var(--rot));
-        /* Faint enough to sit under the question without competing with it. */
-        opacity: 0.22;
+        font-size: 36px;
         line-height: 1;
+        transform: translate(-50%, -50%) rotate(var(--rot));
+        filter: drop-shadow(0 2px 1px rgba(44, 36, 64, 0.25));
         user-select: none;
+        /* Cards change height between questions; slide rather than jump. */
+        transition:
+          left 0.3s ease,
+          top 0.3s ease;
       }
 
-      /* A prize won this round lands with a pop and stays a little brighter,
-         so the change is noticeable without stopping play. */
       .prize--new {
-        opacity: 0.5;
         animation: land 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both;
       }
 
       @keyframes land {
         0% {
           transform: translate(-50%, -50%) rotate(var(--rot)) scale(0);
-          opacity: 0;
         }
         60% {
-          transform: translate(-50%, -50%) rotate(var(--rot)) scale(1.35);
-          opacity: 0.7;
+          transform: translate(-50%, -50%) rotate(var(--rot)) scale(1.5);
         }
         100% {
           transform: translate(-50%, -50%) rotate(var(--rot)) scale(1);
-          opacity: 0.5;
         }
       }
 
       @media (prefers-reduced-motion: reduce) {
+        .prize {
+          transition: none;
+        }
         .prize--new {
           animation: none;
         }
@@ -119,36 +122,96 @@ const SLOT_ORDER: number[] = Array.from(
   ],
 })
 export class PrizeBackdrop {
-  /** Prizes already collected, in the order they were earned. */
+  /** Prizes won here, in the order they were earned. */
   readonly prizes = input.required<readonly Prize[]>();
-  /** Prizes won during this round, drawn brighter and animated in. */
+  /** Prizes won during this round, animated in. */
   readonly highlightIds = input<readonly string[]>([]);
 
-  readonly placed = computed<Placed[]>(() => {
-    const highlights = new Set(this.highlightIds());
-    const slots = COLUMNS * ROWS;
-
-    return this.prizes().map((prize, index) => {
-      // Wrapping past the last slot starts a second, offset pass rather than
-      // stacking exactly on top of the first.
-      const slot = SLOT_ORDER[index % slots];
-      const pass = Math.floor(index / slots);
-      const column = slot % COLUMNS;
-      const row = Math.floor(slot / COLUMNS);
-
-      const jitterX = hash(prize.id) - 0.5;
-      const jitterY = hash(prize.id + 'y') - 0.5;
-
-      return {
-        id: prize.id,
-        emoji: prize.emoji,
-        name: prize.name,
-        left: ((column + 0.5) / COLUMNS) * 100 + jitterX * 12 + pass * 4,
-        top: ((row + 0.5) / ROWS) * 100 + jitterY * 10,
-        size: 34 + Math.round(hash(prize.id + 's') * 20),
-        rotation: Math.round((hash(prize.id + 'r') - 0.5) * 44),
-        isNew: highlights.has(prize.id),
-      };
-    });
+  private readonly backdrop = viewChild<ElementRef<HTMLElement>>('backdrop');
+  private readonly geometry = signal<Geometry | null>(null, {
+    // Measuring is frequent and usually finds nothing moved.
+    equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
+
+  readonly placed = computed<Placed[]>(() => {
+    const geometry = this.geometry();
+    if (!geometry) return [];
+    const highlights = new Set(this.highlightIds());
+    const prizes = this.prizes();
+    const slots = stackSlots(prizes.length, geometry, geometry.obstacles, {
+      cell: CELL,
+    });
+    return slots.map((slot, index) => ({
+      id: prizes[index].id,
+      emoji: prizes[index].emoji,
+      left: slot.x,
+      top: slot.y,
+      rotation: tilt(prizes[index].id),
+      isNew: highlights.has(prizes[index].id),
+    }));
+  });
+
+  constructor() {
+    const destroyRef = inject(DestroyRef);
+
+    afterNextRender(() => {
+      const backdrop = this.backdrop()?.nativeElement;
+      const container = backdrop?.offsetParent;
+      if (!backdrop || !(container instanceof HTMLElement)) return;
+
+      let frame: number | null = null;
+      let settle: ReturnType<typeof setTimeout> | null = null;
+      const resizes = new ResizeObserver(() => schedule());
+
+      const measure = () => {
+        frame = null;
+        const base = backdrop.getBoundingClientRect();
+        const avoid = container.querySelectorAll(`[${PRIZE_AVOID_ATTRIBUTE}]`);
+        resizes.disconnect();
+        resizes.observe(container);
+        const obstacles: Rect[] = [];
+        avoid.forEach((element) => {
+          resizes.observe(element);
+          const rect = element.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) return;
+          obstacles.push({
+            left: rect.left - base.left,
+            top: rect.top - base.top,
+            width: rect.width,
+            height: rect.height,
+          });
+        });
+        this.geometry.set({ width: base.width, height: base.height, obstacles });
+      };
+
+      const schedule = () => {
+        if (frame === null) frame = requestAnimationFrame(measure);
+      };
+
+      // Cards come and go with each phase of the round, and some pop in with a
+      // scale animation, so measure straight away and again once it settles.
+      // The prizes being drawn are mutations too; those change nothing here.
+      const mutations = new MutationObserver((records) => {
+        if (records.every((record) => backdrop.contains(record.target))) return;
+        schedule();
+        if (settle !== null) clearTimeout(settle);
+        settle = setTimeout(schedule, 500);
+      });
+      mutations.observe(container, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+      addEventListener('resize', schedule);
+      measure();
+
+      destroyRef.onDestroy(() => {
+        resizes.disconnect();
+        mutations.disconnect();
+        removeEventListener('resize', schedule);
+        if (frame !== null) cancelAnimationFrame(frame);
+        if (settle !== null) clearTimeout(settle);
+      });
+    });
+  }
 }

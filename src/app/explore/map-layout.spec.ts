@@ -17,9 +17,11 @@ import {
   SPOT_RADIUS,
   buildMapLayout,
   regionForRound,
+  regionIdForPlace,
   spotAt,
   spotFor,
 } from './map-layout';
+import { PRIZES } from '../core/prizes';
 
 const layout = buildMapLayout();
 
@@ -245,5 +247,36 @@ describe('regionForRound', () => {
 
   it('finds nothing for a pack the map does not have', () => {
     expect(regionForRound(layout, { packId: 'nope', level: 1 })).toBeUndefined();
+  });
+});
+
+describe('regionIdForPlace', () => {
+  it('finds the region of the spot a prize was won at', () => {
+    for (const spot of layout.spots) {
+      expect(regionIdForPlace(layout, spot.challengeId, 'star')).toBe(spot.regionId);
+    }
+  });
+
+  it('reads a region place directly, and ignores one that does not exist', () => {
+    expect(regionIdForPlace(layout, 'region:words', 'star')).toBe('words');
+    expect(regionIdForPlace(layout, 'region:nowhere', 'star')).toBeUndefined();
+  });
+
+  it('deals an old pack place to one of that pack\'s regions, stably', () => {
+    const maths = layout.regions.filter((r) => r.packId === 'maths').map((r) => r.id);
+    const homes = new Set(
+      PRIZES.map((prize) => regionIdForPlace(layout, 'pack:maths', prize.id)),
+    );
+    for (const home of homes) expect(maths).toContain(home);
+    // Spread across the regions rather than all piled into one.
+    expect(homes.size).toBeGreaterThan(1);
+    expect(regionIdForPlace(layout, 'pack:maths', 'lion')).toBe(
+      regionIdForPlace(layout, 'pack:maths', 'lion'),
+    );
+  });
+
+  it('has no region for an unknown place', () => {
+    expect(regionIdForPlace(layout, undefined, 'star')).toBeUndefined();
+    expect(regionIdForPlace(layout, 'not.a.challenge', 'star')).toBeUndefined();
   });
 });
