@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { AudioService } from '../../core/audio.service';
+import { eraseForFreshStart } from '../../core/fresh-start';
 import { ProgressService } from '../../core/progress.service';
 import { MediaService } from '../../media/media.service';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
@@ -65,9 +66,14 @@ export class SettingsPage {
     this.media.resetToDefaults();
   }
 
-  resetProgress(): void {
-    this.progress.reset();
-    this.confirmingReset.set(false);
+  /**
+   * Erases everything and reloads. Every service holds its saved state in a
+   * signal read once at startup, so reloading is what guarantees nothing in
+   * memory quietly writes an old value straight back.
+   */
+  startFresh(): void {
+    eraseForFreshStart(localStorage);
+    location.reload();
   }
 
   go(event: Event, href: string): void {

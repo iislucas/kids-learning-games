@@ -21,7 +21,8 @@ export interface ProgressState {
   bestStreak: number;
   unlockedPrizeIds: string[];
   /**
-   * Where each prize was won, as a challenge id or `pack:<id>`.
+   * Where each prize was won: a challenge id, `region:<id>` for an ordinary
+   * round, or `pack:<id>` when only the game is known.
    *
    * Prizes unlock on a cumulative star total, which knows nothing about place —
    * so the place has to be recorded as it happens. It is what lets the map show
@@ -78,9 +79,58 @@ export function starsForAnswer(streak: number): number {
   return 1;
 }
 
+/**
+ * Gives a place to every prize won before places were recorded.
+ *
+ * Which game actually paid for an old prize is gone, but how much she played
+ * each game is not — and stars follow correct answers. So the placeless prizes
+ * are shared out across the packs in proportion to their correct answers,
+ * each going to whichever pack is furthest behind its share. That lands them
+ * in the places she really spent her time, instead of all at the crossroads.
+ *
+ * Returns the state unchanged when there is nothing to fill in, or no play
+ * history to go on.
+ */
+export function backfillPrizePlaces(state: ProgressState): ProgressState {
+  const places = { ...(state.prizePlaces ?? {}) };
+  const missing = PRIZES.filter(
+    (prize) => state.unlockedPrizeIds.includes(prize.id) && !places[prize.id],
+  );
+  const weights = Object.entries(state.packStats ?? {})
+    .map(([packId, stats]) => ({ packId, weight: stats.correct || stats.answered }))
+    .filter((entry) => entry.weight > 0);
+  if (missing.length === 0 || weights.length === 0) return state;
+
+  const total = weights.reduce((sum, entry) => sum + entry.weight, 0);
+  const given = new Map(weights.map((entry) => [entry.packId, 0]));
+  missing.forEach((prize, index) => {
+    const handedOut = index + 1;
+    let best = weights[0];
+    let bestShortfall = -Infinity;
+    for (const entry of weights) {
+      const shortfall =
+        (entry.weight / total) * handedOut - (given.get(entry.packId) ?? 0);
+      if (shortfall > bestShortfall) {
+        best = entry;
+        bestShortfall = shortfall;
+      }
+    }
+    given.set(best.packId, (given.get(best.packId) ?? 0) + 1);
+    places[prize.id] = `pack:${best.packId}`;
+  });
+  return { ...state, prizePlaces: places };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProgressService {
   private readonly state = storedSignal<ProgressState>('klg.progress', EMPTY);
+
+  constructor() {
+    // Written back once, so an old prize keeps the home it is given today
+    // rather than drifting as the play history grows.
+    const filled = backfillPrizePlaces(this.state());
+    if (filled !== this.state()) this.state.set(filled);
+  }
 
   readonly stars = computed(() => this.state().stars);
   readonly answered = computed(() => this.state().answered);
@@ -93,8 +143,9 @@ export class ProgressService {
   );
 
   /**
-   * Where each prize was won. Absent for anything won before places were
-   * recorded, which the map treats as "somewhere in the middle".
+   * Where each prize was won. Old prizes are given a place on load (see
+   * `backfillPrizePlaces`); one can still be absent with no play history to
+   * go on, which the map treats as "somewhere in the middle".
    */
   readonly prizePlaces = computed(() => this.state().prizePlaces ?? {});
   readonly unlockedPrizes = computed(() =>
@@ -135,7 +186,10 @@ export class ProgressService {
     /** Streak *including* this answer. */
     streak: number;
     level: number;
-    /** Challenge id, or `pack:<id>` for an ordinary round. */
+    /**
+     * Challenge id, or `region:<id>` for an ordinary round. Defaults to
+     * `pack:<id>`.
+     */
     place?: string;
     now?: Date;
   }): AnswerOutcome {

@@ -23,7 +23,11 @@ import { findPack } from '../../quiz/pack-registry';
 import { ChallengeRef, findChallenge, isChallengeAvailable } from '../../quiz/challenges';
 import { QuestionPack } from '../../quiz/question.types';
 import { PackOptionsService } from '../../quiz/pack-options.service';
-import { buildMapLayout, regionForRound } from '../../explore/map-layout';
+import {
+  buildMapLayout,
+  regionForRound,
+  regionIdForPlace,
+} from '../../explore/map-layout';
 import { cssUrl, svgDataUrl, terrainTileSvg } from '../../explore/map-art';
 import { QuizSession, QuizSnapshot } from '../../quiz/quiz-session';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
@@ -161,7 +165,22 @@ export class PlayPage {
   readonly wasRetry = signal(false);
 
   readonly stars = this.progress.stars;
-  readonly collectedPrizes = this.progress.unlockedPrizes;
+
+  /**
+   * The prizes won in this round's region, and only those: the backdrop is a
+   * record of what she has done here, the same heap the map shows lying in
+   * this part of the landscape.
+   */
+  readonly prizesWonHere = computed(() => {
+    const regionId = this.region()?.id;
+    if (!regionId) return [];
+    const places = this.progress.prizePlaces();
+    return this.progress
+      .unlockedPrizes()
+      .filter(
+        (prize) => regionIdForPlace(this.layout, places[prize.id], prize.id) === regionId,
+      );
+  });
 
   /**
    * Prizes won during this round, kept for the whole round so the backdrop
@@ -193,6 +212,14 @@ export class PlayPage {
       }) ?? null
     );
   });
+
+  /** The spot being played, else the region, recorded against any prize won. */
+  private placeOfRound(): string | undefined {
+    const challenge = this.challenge();
+    if (challenge) return challenge.id;
+    const region = this.region();
+    return region ? `region:${region.id}` : undefined;
+  }
 
   /** That region's ground tile — generated if the pack has one, else drawn. */
   readonly groundUrl = computed(() => {
@@ -305,7 +332,7 @@ export class PlayPage {
         streak: result.streak,
         level: this.level(),
         // So a prize won here can be left on the map where it was won.
-        place: this.challenge()?.id,
+        place: this.placeOfRound(),
       });
       this.starsJustWon.set(outcome.starsAwarded);
       this.newPrizes.set(outcome.newPrizes);

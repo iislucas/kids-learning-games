@@ -83,10 +83,13 @@
     @if (confirmingReset()) {
       <div class="danger">
         <p>
-          <strong>Erase all stars and prizes?</strong> This cannot be undone.
+          <strong>Start again from scratch?</strong> This erases all stars, prizes
+          and badges, everything built on the map, and every setting — sound,
+          character and which topics are switched on. It cannot be undone.
         </p>
+        <p class="hint">Media studio keys and generated pictures are kept.</p>
         <div class="danger__actions">
-          <button class="btn btn--danger" type="button" (click)="resetProgress()">
+          <button class="btn btn--danger" type="button" (click)="startFresh()">
             Yes, erase everything
           </button>
           <button
@@ -104,7 +107,7 @@
         type="button"
         (click)="confirmingReset.set(true)"
       >
-        Reset all progress
+        Reset everything
       </button>
     }
   </section>

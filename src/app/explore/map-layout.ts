@@ -243,6 +243,36 @@ export function spotAt(
 }
 
 /**
+ * The region a prize was won in, from the place recorded with it.
+ *
+ * A place is a challenge id, `region:<id>` for an ordinary round, or
+ * `pack:<id>` for anything recorded before rounds knew their region. A pack
+ * split across several regions has no way to say which one, so each prize is
+ * dealt to one of them by its id — stably, so the map and the play screen
+ * always agree on where it lives.
+ */
+export function regionIdForPlace(
+  layout: MapLayout,
+  place: string | undefined,
+  prizeId: string,
+): string | undefined {
+  if (!place) return undefined;
+  if (place.startsWith('region:')) {
+    const id = place.slice('region:'.length);
+    return layout.regions.some((region) => region.id === id) ? id : undefined;
+  }
+  if (place.startsWith('pack:')) {
+    const packId = place.slice('pack:'.length);
+    const regions = layout.regions.filter((region) => region.packId === packId);
+    if (regions.length === 0) return undefined;
+    let sum = 0;
+    for (let i = 0; i < prizeId.length; i++) sum += prizeId.charCodeAt(i);
+    return regions[sum % regions.length].id;
+  }
+  return spotFor(layout, place)?.regionId;
+}
+
+/**
  * The region a round is played in, so the game can look like the place it came
  * from.
  *
