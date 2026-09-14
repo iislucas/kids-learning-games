@@ -14,7 +14,7 @@ import { ALL_CHALLENGES, ChallengeRef } from '../quiz/challenges';
  */
 
 export const MAP_WIDTH = 1700;
-export const MAP_HEIGHT = 1400;
+export const MAP_HEIGHT = 1800;
 
 /** How far from a spot counts as standing on it. */
 export const SPOT_RADIUS = 54;
@@ -31,7 +31,7 @@ export interface MapRegion {
   rx: number;
   ry: number;
   /** Terrain the art should draw here. */
-  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves';
+  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves' | 'beach';
   /**
    * Which levels of an ordinary round belong here, for a pack split across
    * several regions. Maths is: adding happens at the ponds and times tables in
@@ -60,8 +60,9 @@ export interface MapLayout {
 }
 
 /**
- * The six lands, in two columns around a crossroads, so every region is a short
- * walk from where she starts and the three maths regions sit together.
+ * Six lands in two columns around a crossroads, plus the Counting Beach along
+ * the bottom for the youngest players. The columns keep the three maths regions
+ * together, each a short walk from where she starts.
  */
 interface RegionPlan extends Omit<MapRegion, 'packId'> {
   packId: string;
@@ -158,6 +159,23 @@ const REGION_PLANS: RegionPlan[] = [
     ry: 185,
     terrain: 'meadow',
     perRow: 2,
+  },
+  {
+    // Along the bottom, below both columns: counting is for the youngest
+    // players, and one row of four spots fits a wide, shallow strip. A beach,
+    // so it looks like nowhere else on the map.
+    id: 'counting',
+    packId: 'counting',
+    prefix: 'counting.',
+    name: 'Counting Beach',
+    emoji: '🐚',
+    colour: '#f29a2e',
+    cx: 870,
+    cy: 1590,
+    rx: 420,
+    ry: 170,
+    terrain: 'beach',
+    perRow: 4,
   },
 ];
 

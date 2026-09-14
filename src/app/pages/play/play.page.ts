@@ -8,6 +8,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { withParam } from '../../routing/routing.utils';
@@ -44,7 +45,7 @@ const REVEAL_MS = { correct: 1500, wrong: 3200 };
 @Component({
   selector: 'app-play-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop, GameSetup],
+  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop, GameSetup, NgTemplateOutlet],
   templateUrl: './play.page.html',
   styleUrl: './play.page.scss',
 })
@@ -68,6 +69,16 @@ export class PlayPage {
   readonly questionPicture = computed(() => {
     const id = this.snapshot()?.question.picture;
     return id ? (this.media.picture(id) ?? null) : null;
+  });
+
+  /** The things to count, one entry each, numbered from 1. */
+  readonly countItems = computed(() => {
+    const count = this.snapshot()?.question.count;
+    if (!count) return [];
+    return Array.from({ length: count.amount }, (_, i) => ({
+      number: i + 1,
+      emoji: count.emoji,
+    }));
   });
 
   private readonly routeSignals = this.router.signals[Views.Play];
@@ -167,14 +178,23 @@ export class PlayPage {
   readonly stars = this.progress.stars;
 
   /**
-   * The prizes won in this round's region, and only those: the backdrop is a
-   * record of what she has done here, the same heap the map shows lying in
-   * this part of the landscape.
+   * The prizes won right here, and only those: the backdrop is a record of what
+   * she has done in this place.
+   *
+   * A challenge is its own place, so the −7 and −8 families each show their own
+   * prizes rather than sharing the Take-Away Caves' heap. An ordinary round has
+   * no spot, so it shows everything won in its region.
    */
   readonly prizesWonHere = computed(() => {
+    const places = this.progress.prizePlaces();
+    const challengeId = this.challenge()?.id;
+    if (challengeId) {
+      return this.progress
+        .unlockedPrizes()
+        .filter((prize) => places[prize.id] === challengeId);
+    }
     const regionId = this.region()?.id;
     if (!regionId) return [];
-    const places = this.progress.prizePlaces();
     return this.progress
       .unlockedPrizes()
       .filter(

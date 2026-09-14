@@ -184,7 +184,11 @@
               } @else if (snap.question.instruction) {
                 <p class="bubble__instruction">{{ snap.question.instruction }}</p>
               }
-              @if (questionPicture(); as picture) {
+              @if (countItems().length > 0) {
+                <ng-container
+                  *ngTemplateOutlet="things; context: { numbered: false }"
+                />
+              } @else if (questionPicture(); as picture) {
                 <img
                   class="bubble__picture"
                   [src]="picture"
@@ -207,6 +211,12 @@
               }
             } @else {
               <p class="bubble__prompt bubble__prompt--bad">Not quite!</p>
+              @if (countItems().length > 0) {
+                <!-- Counting is taught by counting them, so number each one. -->
+                <ng-container
+                  *ngTemplateOutlet="things; context: { numbered: true }"
+                />
+              }
               @if (snap.question.explanation) {
                 <p class="bubble__instruction">{{ snap.question.explanation }}</p>
               }
@@ -265,3 +275,22 @@
     </div>
   </div>
 }
+
+<!-- The things to count, in rows of five so a group is easy to take in. -->
+<ng-template #things let-numbered="numbered">
+  <ul
+    class="things"
+    [class.things--numbered]="numbered"
+    [style.--cols]="countItems().length < 5 ? countItems().length : 5"
+    [attr.aria-label]="snapshot()?.question?.instruction"
+  >
+    @for (item of countItems(); track item.number) {
+      <li class="things__item">
+        <span class="things__emoji" aria-hidden="true">{{ item.emoji }}</span>
+        @if (numbered) {
+          <span class="things__number">{{ item.number }}</span>
+        }
+      </li>
+    }
+  </ul>
+</ng-template>

@@ -1,10 +1,12 @@
 import { QuestionPack } from './question.types';
+import { countingPack } from './packs/counting.pack';
 import { mathsPack } from './packs/maths.pack';
 import { englishPack } from './packs/english.pack';
 import { frenchPack } from './packs/french.pack';
 import { sciencePack } from './packs/science.pack';
 
 export const QUESTION_PACKS: QuestionPack[] = [
+  countingPack,
   mathsPack,
   englishPack,
   frenchPack,

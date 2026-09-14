@@ -108,6 +108,19 @@
             />
           }
         }
+
+        <!-- Each region's one extra piece, rolled at random. -->
+        @for (extra of extras(); track extra.id) {
+          <img
+            class="prop prop--extra"
+            [src]="extra.src"
+            alt=""
+            aria-hidden="true"
+            [style.left.px]="extra.x"
+            [style.top.px]="extra.y"
+            [style.width.px]="extra.width"
+          />
+        }
       }
 
       @for (region of layout.regions; track region.id) {
@@ -151,7 +164,17 @@
           "
           (click)="goToSpot($event, view)"
         >
-          <img class="place__build" [src]="view.build" alt="" aria-hidden="true" />
+          @if (view.build; as build) {
+            <img
+              class="place__build"
+              [src]="build.src"
+              [style.width.px]="build.width"
+              alt=""
+              aria-hidden="true"
+            />
+          } @else {
+            <span class="place__plot" aria-hidden="true"></span>
+          }
           <span class="place__label">{{ view.ref.challenge.short }}</span>
         </button>
       }
