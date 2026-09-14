@@ -1,7 +1,7 @@
 # Play & Learn 🦊
 
 A small collection of educational games for a 7-year-old: arithmetic, spelling,
-French and a nature quiz. Answer correctly, the character celebrates, and stars
+French and a nature quiz, plus counting for younger children. Answer correctly, the character celebrates, and stars
 accumulate towards a collection of 30 prizes. There is also a landscape to walk
 around, with a badge to win at every place on it.
 
@@ -104,6 +104,7 @@ changing one restarts the round.
 
 | Pack | Options |
 | --- | --- |
+| Counting | None — the things to count (cats, flowers, trees…) are just variety |
 | Number Fun | Which **times tables** (2–12, defaults 2/3/4/5/10); which operations appear in the mixed round |
 | Word Play | Word difficulty — short, longer, tricky |
 | Français | Word topics — animals, food, colours, school, family |
@@ -186,10 +187,10 @@ something.
 
 Challenges are declared on the pack that owns their content
 ([`Challenge`](src/app/quiz/question.types.ts)) and flattened into a registry by
-[`challenges.ts`](src/app/quiz/challenges.ts). There are 47: the eleven times
+[`challenges.ts`](src/app/quiz/challenges.ts). There are 51: the eleven times
 tables, the ten adding families, the ten take-away families, the three word
-bands plus sight words and rhymes, the five French topics plus numbers, and the
-four quiz topics. One is played with `?challenge=<id>` on the play screen;
+bands plus sight words and rhymes, the five French topics plus numbers, the
+four quiz topics, and four counting bands (1–5 up to 16–20). One is played with `?challenge=<id>` on the play screen;
 `QuizSession` takes the deck instead of generating, and the round is as long as
 the deck.
 
@@ -204,7 +205,7 @@ The spot stays on the map, struck through, saying which setting closed it.
 
 ### The map (`/`)
 
-The 47 challenges are places in a landscape the fox walks around in eight
+The 51 challenges are places in a landscape the fox walks around in eight
 directions. **Tapping is the whole interface** — tap the ground and she walks
 there, tap a place and she walks to it and it opens. Arrow keys and WASD work
 too, for a laptop.
@@ -259,7 +260,7 @@ filled with a seamless 256px tile, with props — trees, boulders, cottages,
 ponds — scattered over it at positions derived from the layout. Three reasons:
 
 - Every piece can be replaced on its own by a generated image, and a tile plus a
-  handful of sprites is a fraction of the bytes of a 1700×1400 painting, which
+  handful of sprites is a fraction of the bytes of a 1700×1800 painting, which
   matters when the media pack lives in `localStorage`.
 - A tile repeats to fill any area, so moving or adding a region needs no art
   regenerated.

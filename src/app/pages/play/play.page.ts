@@ -8,6 +8,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { withParam } from '../../routing/routing.utils';
@@ -44,7 +45,7 @@ const REVEAL_MS = { correct: 1500, wrong: 3200 };
 @Component({
   selector: 'app-play-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop, GameSetup],
+  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop, GameSetup, NgTemplateOutlet],
   templateUrl: './play.page.html',
   styleUrl: './play.page.scss',
 })
@@ -68,6 +69,16 @@ export class PlayPage {
   readonly questionPicture = computed(() => {
     const id = this.snapshot()?.question.picture;
     return id ? (this.media.picture(id) ?? null) : null;
+  });
+
+  /** The things to count, one entry each, numbered from 1. */
+  readonly countItems = computed(() => {
+    const count = this.snapshot()?.question.count;
+    if (!count) return [];
+    return Array.from({ length: count.amount }, (_, i) => ({
+      number: i + 1,
+      emoji: count.emoji,
+    }));
   });
 
   private readonly routeSignals = this.router.signals[Views.Play];

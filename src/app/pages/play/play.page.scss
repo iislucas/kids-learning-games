@@ -159,6 +159,37 @@
   margin: 4px auto 0;
 }
 
+/* Things to count: rows of five, the way counting is taught with a ten frame. */
+.things {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), minmax(0, 2.4rem));
+  justify-content: center;
+  gap: 4px 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.things__item {
+  display: grid;
+  justify-items: center;
+}
+
+.things__emoji {
+  font-size: clamp(1.35rem, 6.6vw, 2rem);
+  line-height: 1.15;
+}
+
+.things__number {
+  min-width: 1.4rem;
+  border-radius: 999px;
+  background: var(--good);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 .bubble {
   position: relative;
   flex: 1;

@@ -372,9 +372,9 @@ function keyOf(question: {
 }
 
 describe('question packs', () => {
-  it('registers four packs with unique ids', () => {
+  it('registers five packs with unique ids', () => {
     const ids = QUESTION_PACKS.map((pack) => pack.id);
-    expect(ids).toEqual(['maths', 'english', 'french', 'science']);
+    expect(ids).toEqual(['counting', 'maths', 'english', 'french', 'science']);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -417,6 +417,28 @@ describe('question packs', () => {
       const answer = Number(question.choices[question.correctIndex]);
       expect(Number.isFinite(answer)).toBe(true);
       expect(answer).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('shows as many things to count as the right answer, within the level', () => {
+    const pack = findPack('counting')!;
+    const rng = new Rng(2024);
+    for (const [level, max] of [[1, 5], [2, 10], [3, 20]]) {
+      const seen = new Set<number>();
+      for (let i = 0; i < 300; i++) {
+        const question = pack.generate(level, rng, defaultSelection(pack));
+        const answer = Number(question.choices[question.correctIndex]);
+        expect(question.count?.amount).toBe(answer);
+        expect(answer).toBeGreaterThanOrEqual(1);
+        expect(answer).toBeLessThanOrEqual(max);
+        expect(question.choices.length).toBe(4);
+        for (const choice of question.choices) {
+          expect(Number(choice)).toBeGreaterThanOrEqual(1);
+        }
+        seen.add(answer);
+      }
+      // Every number up to the top of the level turns up.
+      expect(seen.size).toBe(max);
     }
   });
 

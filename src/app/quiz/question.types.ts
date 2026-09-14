@@ -15,6 +15,11 @@ export interface Question {
   picture?: string;
   /** What that picture should be of, for whoever is generating it. */
   pictureLabel?: string;
+  /**
+   * A group of things to count, shown in place of the prompt: `amount` copies
+   * of `emoji`. The counting round asks "how many?" with the things themselves.
+   */
+  count?: { emoji: string; amount: number };
   choices: string[];
   correctIndex: number;
   /** Shown after a wrong answer to teach rather than just mark. */
