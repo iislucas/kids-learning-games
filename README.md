@@ -1,4 +1,4 @@
-# Play & Learn 🦊
+# Elyse's Learning Game 🦊
 
 A small collection of educational games for a 7-year-old: arithmetic, spelling,
 French and a nature quiz, plus counting for younger children. Answer correctly, the character celebrates, and stars
