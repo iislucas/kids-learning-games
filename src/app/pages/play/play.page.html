@@ -175,8 +175,14 @@
             <span class="stage__name">{{ characterName() }}</span>
           </div>
 
+          <!--
+            All three things the bubble can say are always laid out, stacked in
+            one grid cell, and only the current one is visible. The bubble is
+            therefore the size of the largest from the moment the question
+            appears, so answering never resizes it or moves her.
+          -->
           <div class="bubble" data-prize-avoid aria-live="polite">
-            @if (snap.phase === 'asking') {
+            <div class="bubble__say" [class.bubble__say--hidden]="bubbleSays() !== 'question'">
               @if (snap.attempts > 0) {
                 <p class="bubble__instruction bubble__instruction--retry">
                   Have another go!
@@ -185,7 +191,9 @@
                 <p class="bubble__instruction">{{ snap.question.instruction }}</p>
               }
               <app-question-prompt [question]="snap.question" />
-            } @else if (lastWasCorrect()) {
+            </div>
+
+            <div class="bubble__say" [class.bubble__say--hidden]="bubbleSays() !== 'right'">
               @if (wasRetry()) {
                 <p class="bubble__prompt bubble__prompt--good">That's it! 🌟</p>
                 <p class="bubble__instruction">Now you know it.</p>
@@ -197,7 +205,9 @@
                   <p class="bubble__instruction">+1 star</p>
                 }
               }
-            } @else {
+            </div>
+
+            <div class="bubble__say" [class.bubble__say--hidden]="bubbleSays() !== 'wrong'">
               <p class="bubble__prompt bubble__prompt--bad">Not quite!</p>
               <!-- Counting is taught by counting them, so number each one. -->
               <app-question-prompt [question]="snap.question" [numbered]="true" />
@@ -207,20 +217,21 @@
               <p class="bubble__instruction bubble__instruction--retry">
                 {{ retryHint() }}
               </p>
-            }
+            </div>
           </div>
-        </section>
 
-        @if (newPrizes().length > 0) {
-          <div class="prizewon" data-prize-avoid role="status">
-            @for (prize of newPrizes(); track prize.id) {
-              <span class="prizewon__item">
-                <span class="prizewon__emoji" aria-hidden="true">{{ prize.emoji }}</span>
-                New prize: <strong>{{ prize.name }}</strong>
-              </span>
-            }
-          </div>
-        }
+          <!-- Over the empty space above her, not in the flow, so it moves nothing. -->
+          @if (newPrizes().length > 0) {
+            <div class="prizewon" data-prize-avoid role="status">
+              @for (prize of newPrizes(); track prize.id) {
+                <span class="prizewon__item">
+                  <span class="prizewon__emoji" aria-hidden="true">{{ prize.emoji }}</span>
+                  New prize: <strong>{{ prize.name }}</strong>
+                </span>
+              }
+            </div>
+          }
+        </section>
 
         <!-- How the answer is given depends on the kind of question. -->
         @switch (snap.question.kind) {
@@ -234,11 +245,19 @@
           }
         }
 
-        @if (snap.phase === 'revealing') {
-          <button class="btn btn--ghost next" data-prize-avoid type="button" (click)="next()">
-            {{ snap.awaitingRetry ? 'Try again ↺' : 'Next →' }}
-          </button>
-        }
+        <!-- Always takes its space, and is only shown once there is an answer,
+             so its arriving does not push everything up. -->
+        <button
+          class="btn btn--ghost next"
+          [class.next--waiting]="snap.phase !== 'revealing'"
+          [disabled]="snap.phase !== 'revealing'"
+          [attr.aria-hidden]="snap.phase !== 'revealing'"
+          data-prize-avoid
+          type="button"
+          (click)="next()"
+        >
+          {{ snap.awaitingRetry ? 'Try again ↺' : 'Next →' }}
+        </button>
       }
     }
   </div>

@@ -70,6 +70,12 @@ export class PlayPage {
   readonly character = this.media.character;
   readonly characterName = computed(() => this.character().name);
 
+  /** Which of its three messages the speech bubble is showing. */
+  readonly bubbleSays = computed<'question' | 'right' | 'wrong'>(() => {
+    if (this.snapshot()?.phase !== 'revealing') return 'question';
+    return this.lastWasCorrect() ? 'right' : 'wrong';
+  });
+
   /** What to say after a wrong answer, which depends on how it is answered. */
   readonly retryHint = computed(() => {
     const question = this.snapshot()?.question;

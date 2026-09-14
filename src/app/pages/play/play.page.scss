@@ -126,11 +126,14 @@
 
 .stage {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 6px;
-  /* Floats in whatever space is left between the progress bar and the answers,
-     so a tall phone does not leave the question stranded at the top. */
-  margin: auto 0;
+  /* Takes all the space between the progress bar and the answers, with her in
+     the middle of it, so a tall phone does not leave the question stranded at
+     the top. Filling the space rather than floating in it is what keeps her
+     still: nothing above or below the stage changes height during a question,
+     so neither does the stage. */
+  flex: 1 0 auto;
   padding: 10px 0;
 }
 
@@ -164,17 +167,30 @@
   padding: 16px 18px;
   margin-bottom: 22px;
   text-align: center;
+  /* One cell, with every message stacked in it: see .bubble__say. */
+  display: grid;
 
   /* Little tail pointing at the character. */
   &::after {
     content: '';
     position: absolute;
     left: -9px;
-    bottom: 26px;
+    top: calc(50% - 10px);
     border: 10px solid transparent;
     border-right-color: var(--paper);
     border-left: 0;
   }
+}
+
+/* Each message sits in the same cell, centred, so the bubble is as big as the
+   biggest one and swapping between them changes nothing around it. */
+.bubble__say {
+  grid-area: 1 / 1;
+  align-self: center;
+}
+
+.bubble__say--hidden {
+  visibility: hidden;
 }
 
 .bubble__instruction {
@@ -216,6 +232,17 @@
   list-style: none;
 }
 
+/* Laid over the top of the stage, which is empty space above her, rather than
+   taking room of its own and shoving everything up when a prize is won. (The
+   stage is already positioned, as a direct child of .play.) */
+.prizewon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+}
+
 .prizewon__item,
 .badgewon__item {
   display: inline-flex;
@@ -248,6 +275,10 @@
 .next {
   margin-top: 14px;
   width: 100%;
+}
+
+.next--waiting {
+  visibility: hidden;
 }
 
 .finish {
