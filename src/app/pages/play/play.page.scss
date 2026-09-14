@@ -152,44 +152,8 @@
   font-weight: 800;
 }
 
-.bubble__picture {
-  display: block;
-  width: min(180px, 46vw);
-  height: auto;
-  margin: 4px auto 0;
-}
-
-/* Things to count: rows of five, the way counting is taught with a ten frame. */
-.things {
-  display: grid;
-  grid-template-columns: repeat(var(--cols, 5), minmax(0, 2.4rem));
-  justify-content: center;
-  gap: 4px 2px;
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.things__item {
-  display: grid;
-  justify-items: center;
-}
-
-.things__emoji {
-  font-size: clamp(1.35rem, 6.6vw, 2rem);
-  line-height: 1.15;
-}
-
-.things__number {
-  min-width: 1.4rem;
-  border-radius: 999px;
-  background: var(--good);
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1.4;
-}
-
+/* The question itself is drawn by <app-question-prompt>, and the answer buttons
+   by the component for its kind (<app-choice-answers>). */
 .bubble {
   position: relative;
   flex: 1;
@@ -278,80 +242,6 @@
   to {
     transform: scale(1);
     opacity: 1;
-  }
-}
-
-.choices {
-  list-style: none;
-  /* Pinned to the bottom: that is where thumbs are. */
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 1fr 1fr;
-}
-
-.choice {
-  width: 100%;
-  /* Big enough to hit reliably with a small finger in a moving car. */
-  min-height: 76px;
-  padding: 12px 10px;
-  border-radius: var(--radius);
-  background: var(--paper);
-  box-shadow: 0 5px 0 var(--line);
-  font-size: clamp(1.15rem, 5vw, 1.5rem);
-  font-weight: 800;
-  color: var(--ink);
-  word-break: break-word;
-  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease,
-    opacity 0.15s ease;
-
-  &:active:not(:disabled) {
-    transform: translateY(5px);
-    box-shadow: none;
-  }
-
-  &:disabled {
-    /* Overrides the global disabled fade; the reveal colours carry the meaning. */
-    opacity: 1;
-    cursor: default;
-  }
-}
-
-.choice--right {
-  background: var(--good);
-  color: #fff;
-  box-shadow: 0 5px 0 var(--good-dark);
-  animation: pop 0.35s cubic-bezier(0.2, 1.5, 0.5, 1) both;
-}
-
-.choice--wrong {
-  background: var(--bad);
-  color: #fff;
-  box-shadow: 0 5px 0 var(--bad-dark);
-  animation: shake 0.4s ease both;
-}
-
-.choice--dimmed {
-  opacity: 0.4;
-}
-
-@keyframes shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-7px);
-  }
-  40% {
-    transform: translateX(7px);
-  }
-  60% {
-    transform: translateX(-4px);
-  }
-  80% {
-    transform: translateX(4px);
   }
 }
 

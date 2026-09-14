@@ -1,5 +1,7 @@
-import { PropKind, TerrainId, noise } from './map-art';
+import { noise } from './map-art';
 import { MapRegion, MapSpot } from './map-layout';
+import { PropKind } from './props';
+import { TerrainId, terrainDef } from './terrains';
 
 /**
  * What grows at each place as it is won.
@@ -19,27 +21,13 @@ import { MapRegion, MapSpot } from './map-layout';
  * lighthouse — which is rolled again after a fresh start, so no two playthroughs
  * dress the map quite the same.
  *
+ * Which landmark and which extras belong to a terrain is declared with the rest
+ * of its look in `terrains.ts`; this file decides when and how big.
+ *
  * Pure and Angular-free, so it can be unit-tested.
  */
 
 export type BuildStage = 'plot' | 'started' | 'finished';
-
-export interface TerrainTheme {
-  /** Grows at every place in the region: small when started, big when finished. */
-  landmark: PropKind;
-  /** One of these is picked at random for the region. */
-  extras: PropKind[];
-}
-
-export const TERRAIN_THEMES: Record<TerrainId, TerrainTheme> = {
-  hills: { landmark: 'windmill', extras: ['sheep', 'haybarn'] },
-  water: { landmark: 'lilypad', extras: ['rowboat', 'duckhouse'] },
-  caves: { landmark: 'cave', extras: ['crystals', 'minecart'] },
-  forest: { landmark: 'oak', extras: ['mushrooms', 'logcabin'] },
-  village: { landmark: 'townhouse', extras: ['well', 'fruitstall'] },
-  meadow: { landmark: 'sunflower', extras: ['beehive', 'scarecrow'] },
-  beach: { landmark: 'sandcastle', extras: ['parasol', 'lighthouse'] },
-};
 
 /** Rendered widths in map pixels; heights follow each picture's own shape. */
 export const BUILD_WIDTHS: Record<Exclude<BuildStage, 'plot'>, number> = {
@@ -63,7 +51,7 @@ export function buildFor(
   stage: BuildStage,
 ): { kind: PropKind; width: number } | null {
   if (stage === 'plot') return null;
-  return { kind: TERRAIN_THEMES[terrain].landmark, width: BUILD_WIDTHS[stage] };
+  return { kind: terrainDef(terrain).landmark, width: BUILD_WIDTHS[stage] };
 }
 
 /** A region's extra piece, as rolled and stored. */
@@ -78,7 +66,7 @@ export interface ExtraRoll {
  * fixed sequence in the tests.
  */
 export function rollExtra(terrain: TerrainId, random: () => number): ExtraRoll {
-  const extras = TERRAIN_THEMES[terrain].extras;
+  const extras = terrainDef(terrain).extras;
   return {
     kind: extras[Math.floor(random() * extras.length) % extras.length],
     seed: Math.floor(random() * 1_000_000),
@@ -92,7 +80,7 @@ export function isValidRoll(terrain: TerrainId, roll: unknown): roll is ExtraRol
   return (
     typeof seed === 'number' &&
     Number.isFinite(seed) &&
-    TERRAIN_THEMES[terrain].extras.includes(kind as PropKind)
+    terrainDef(terrain).extras.includes(kind as PropKind)
   );
 }
 

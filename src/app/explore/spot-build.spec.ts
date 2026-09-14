@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILD_WIDTHS,
   EXTRA_CLEARANCE,
-  TERRAIN_THEMES,
   buildFor,
   isValidRoll,
   placeExtra,
   rollExtra,
   stageFor,
 } from './spot-build';
-import { PROP_DESCRIPTIONS, PROP_KINDS, TERRAIN_IDS, propSvg } from './map-art';
+import { drawingFor, propSvg } from './map-art';
 import { buildMapLayout } from './map-layout';
+import { PROPS, PROP_KINDS } from './props';
+import { TERRAINS, TERRAIN_IDS } from './terrains';
 
 const layout = buildMapLayout();
 
@@ -45,7 +46,7 @@ describe('buildFor', () => {
   });
 
   it('gives every region a landmark of its own', () => {
-    const landmarks = layout.regions.map((r) => TERRAIN_THEMES[r.terrain].landmark);
+    const landmarks = layout.regions.map((r) => TERRAINS[r.terrain].landmark);
     const terrains = layout.regions.map((r) => r.terrain);
     expect(new Set(landmarks).size).toBe(new Set(terrains).size);
   });
@@ -54,23 +55,42 @@ describe('buildFor', () => {
 describe('terrain themes', () => {
   it('names only pictures the map knows how to make and draw', () => {
     for (const terrain of TERRAIN_IDS) {
-      const theme = TERRAIN_THEMES[terrain];
+      const theme = TERRAINS[terrain];
       expect(theme.extras.length).toBeGreaterThan(1);
       for (const kind of [theme.landmark, ...theme.extras]) {
         expect(PROP_KINDS).toContain(kind);
-        expect(PROP_DESCRIPTIONS[kind].length).toBeGreaterThan(10);
+        expect(PROPS[kind].description.length).toBeGreaterThan(10);
         expect(propSvg(kind)).toContain('<svg');
       }
     }
   });
 
   it('does not reuse a landmark as an extra anywhere', () => {
-    const landmarks = new Set(TERRAIN_IDS.map((t) => TERRAIN_THEMES[t].landmark));
+    const landmarks = new Set(TERRAIN_IDS.map((t) => TERRAINS[t].landmark));
     for (const terrain of TERRAIN_IDS) {
-      for (const extra of TERRAIN_THEMES[terrain].extras) {
+      for (const extra of TERRAINS[terrain].extras) {
         expect(landmarks.has(extra), extra).toBe(false);
       }
     }
+  });
+});
+
+describe('props', () => {
+  it('gives every picture a drawing to fall back on', () => {
+    for (const kind of PROP_KINDS) {
+      expect(drawingFor(kind), kind).toBeDefined();
+    }
+  });
+
+  it('uses every picture somewhere, so nothing is generated for nothing', () => {
+    const used = new Set(
+      TERRAIN_IDS.flatMap((t) => [
+        ...TERRAINS[t].scenery,
+        TERRAINS[t].landmark,
+        ...TERRAINS[t].extras,
+      ]),
+    );
+    expect(PROP_KINDS.filter((kind) => !used.has(kind))).toEqual([]);
   });
 });
 
@@ -82,7 +102,7 @@ describe('extras', () => {
         const values = [i / 20, 0.5];
         seen.add(rollExtra(terrain, () => values.shift() ?? 0).kind);
       }
-      expect([...seen].sort()).toEqual([...TERRAIN_THEMES[terrain].extras].sort());
+      expect([...seen].sort()).toEqual([...TERRAINS[terrain].extras].sort());
     }
   });
 

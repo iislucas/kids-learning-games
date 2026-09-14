@@ -4,6 +4,7 @@ import {
   PackSelection,
   Question,
   QuestionPack,
+  completeSet,
   makeChoice,
   numericDistractors,
 } from '../question.types';
@@ -48,17 +49,17 @@ function range(from: number, to: number): number[] {
  * One challenge per band of five, so each is short enough for a small child to
  * get every one right and the next band is always in sight.
  */
-const COUNTING_CHALLENGES: Challenge[] = [1, 6, 11, 16].map((from): Challenge => {
+const COUNTING_CHALLENGES: Challenge[] = [1, 6, 11, 16].map((from) => {
   const to = from + 4;
-  return {
+  return completeSet({
     id: `counting.${from}-${to}`,
     name: `Counting ${from} to ${to}`,
     // "11–15" is too long for a signpost; the top of the band says enough.
     short: `…${to}`,
     emoji: '🐚',
-    goal: 'Get all 5 right!',
-    deck: (rng: Rng) => rng.shuffle(range(from, to)).map((n) => countingQuestion(rng, n)),
-  };
+    items: range(from, to),
+    ask: countingQuestion,
+  });
 });
 
 /**

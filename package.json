@@ -10,7 +10,8 @@
     "test": "ng test",
     "test:watch": "ng test --watch",
     "gen:media": "node scripts/generate-default-media.mts",
-    "gen:voices": "node scripts/generate-voices.mts"
+    "gen:voices": "node scripts/generate-voices.mts",
+    "extract:map-art": "node scripts/extract-map-art.mts"
   },
   "private": true,
   "engines": {

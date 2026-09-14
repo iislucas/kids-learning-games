@@ -1,6 +1,10 @@
 import { Rng } from '../core/rng';
 
-export interface Question {
+/**
+ * What every question shows, whatever kind of answer it wants: the words, the
+ * picture or the things to count, and what to say after a wrong answer.
+ */
+export interface QuestionBase {
   /** Main text, e.g. "7 + 5" or "Which animal lives in the sea?". */
   prompt: string;
   /** Optional smaller line above the prompt, e.g. "Spell the missing letter". */
@@ -20,11 +24,36 @@ export interface Question {
    * of `emoji`. The counting round asks "how many?" with the things themselves.
    */
   count?: { emoji: string; amount: number };
-  choices: string[];
-  correctIndex: number;
   /** Shown after a wrong answer to teach rather than just mark. */
   explanation?: string;
 }
+
+/** Pick the right one of a few buttons. The only kind so far. */
+export interface ChoiceQuestion extends QuestionBase {
+  kind: 'choice';
+  choices: string[];
+  correctIndex: number;
+}
+
+export interface ChoiceAnswer {
+  kind: 'choice';
+  index: number;
+}
+
+/**
+ * Every kind of question a game can ask, told apart by `kind`.
+ *
+ * A new kind — typing the answer, putting things in order — is a new member
+ * here, a matching member of `Answer`, its rules in `game-kinds.ts` and a
+ * component that takes the answer. The round, the stars, the retry after a
+ * wrong answer and the map all work on any kind without knowing which.
+ */
+export type Question = ChoiceQuestion;
+
+/** What the player gave in reply, one member per kind of question. */
+export type Answer = ChoiceAnswer;
+
+export type QuestionKind = Question['kind'];
 
 export interface Level {
   /** 1-based. */
@@ -100,6 +129,32 @@ export interface Challenge {
    * length of the round.
    */
   deck(rng: Rng): Question[];
+}
+
+/**
+ * A challenge built from a list: every item asked once, in a fresh order.
+ *
+ * That is the shape of every challenge in the game — the ten facts of a times
+ * table, the words of a topic, the numbers one to five — so a pack only has to
+ * say what the items are and how to ask one. The goal defaults to "Get all N
+ * right!", counted from the items so it can never disagree with the round.
+ */
+export function completeSet<T>(parts: {
+  id: string;
+  name: string;
+  short: string;
+  emoji: string;
+  items: readonly T[];
+  ask: (rng: Rng, item: T) => Question;
+  goal?: string;
+  requires?: Challenge['requires'];
+}): Challenge {
+  const { items, ask, goal, ...rest } = parts;
+  return {
+    ...rest,
+    goal: goal ?? `Get all ${items.length} right!`,
+    deck: (rng: Rng) => rng.shuffle(items).map((item) => ask(rng, item)),
+  };
 }
 
 export interface QuestionPack {
@@ -215,10 +270,11 @@ export function makeChoice(
     pictureLabel?: string;
     explanation?: string;
   },
-): Question {
+): ChoiceQuestion {
   const unique = [...new Set(parts.distractors.filter((d) => d !== parts.correct))];
   const choices = rng.shuffle([parts.correct, ...unique.slice(0, 3)]);
   return {
+    kind: 'choice',
     prompt: parts.prompt,
     instruction: parts.instruction,
     emoji: parts.emoji,

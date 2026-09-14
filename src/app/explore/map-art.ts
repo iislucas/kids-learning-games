@@ -1,4 +1,6 @@
 import { MapLayout, MapRegion, MapSpot } from './map-layout';
+import { DrawnPropKind, PROPS, PropKind, isDrawnProp } from './props';
+import { TerrainId, terrainDef } from './terrains';
 
 /**
  * The landscape, built from tiles and sprites rather than one big picture.
@@ -9,7 +11,7 @@ import { MapLayout, MapRegion, MapSpot } from './map-layout';
  *
  *  - Every piece can be replaced on its own by a generated image, and a 256px
  *    tile plus a handful of sprites is a fraction of the bytes of a
- *    1700×1400 painting, which matters when the media pack lives in
+ *    1700×1800 painting, which matters when the media pack lives in
  *    `localStorage`.
  *  - A tile repeats to fill any area, so adding a region or moving one does not
  *    need the art regenerating.
@@ -21,75 +23,12 @@ import { MapLayout, MapRegion, MapSpot } from './map-layout';
  * shadow read as a place. The labelled sketch is the deliberate exception — it
  * stays flat, because a model reading it needs regions and circles, not art.
  *
- * Angular-free, and free of `enum`s and parameter properties, because
- * `scripts/generate-default-media.mts` imports it directly.
- */
-
-export type TerrainId = MapRegion['terrain'];
-
-export const TERRAIN_IDS: TerrainId[] = [
-  'hills',
-  'water',
-  'caves',
-  'forest',
-  'village',
-  'meadow',
-  'beach',
-];
-
-/** The scattered scenery, each with a drawn fallback of its own. */
-const SCENERY_KINDS = [
-  'tree',
-  'pine',
-  'boulder',
-  'cottage',
-  'pond',
-  'flower',
-  'palm',
-  'shells',
-] as const;
-
-type SceneryKind = (typeof SCENERY_KINDS)[number];
-
-/**
- * What grows at a place as it is won, and the one extra piece each region is
- * given at random. See `TERRAIN_THEMES` in `spot-build.ts` for which is which.
+ * What each terrain looks like is declared in `terrains.ts` and the pictures
+ * in `props.ts`; this file only draws them.
  *
- * These are only ever meant to be generated pictures. Each borrows the drawing
- * of the nearest scenery piece as a fallback, which is good enough for a pack
- * whose art has been cleared and not worth a hand-drawn SVG apiece.
+ * Angular-free, and free of `enum`s and parameter properties, like the rest of
+ * `explore/`.
  */
-const THEMED_FALLBACKS = {
-  windmill: 'cottage',
-  lilypad: 'pond',
-  cave: 'boulder',
-  oak: 'tree',
-  townhouse: 'cottage',
-  sunflower: 'flower',
-  sandcastle: 'boulder',
-  sheep: 'boulder',
-  haybarn: 'cottage',
-  rowboat: 'pond',
-  duckhouse: 'cottage',
-  crystals: 'boulder',
-  minecart: 'boulder',
-  mushrooms: 'flower',
-  logcabin: 'cottage',
-  well: 'boulder',
-  fruitstall: 'cottage',
-  beehive: 'boulder',
-  scarecrow: 'tree',
-  parasol: 'flower',
-  lighthouse: 'pine',
-} as const satisfies Record<string, SceneryKind>;
-
-/** Every picture the map can use. One image each, when they are generated. */
-export const PROP_KINDS = [
-  ...SCENERY_KINDS,
-  ...(Object.keys(THEMED_FALLBACKS) as (keyof typeof THEMED_FALLBACKS)[]),
-];
-
-export type PropKind = SceneryKind | keyof typeof THEMED_FALLBACKS;
 
 /** Tiles are square and repeat; props are drawn in a box this size. */
 export const TILE_SIZE = 256;
@@ -162,81 +101,9 @@ function wrapped(draw: (x: number, y: number) => string, x: number, y: number): 
   return out.join('');
 }
 
-interface TileRecipe {
-  /** Base wash, lit from above. */
-  top: string;
-  bottom: string;
-  /** Speckles strewn over it. */
-  marks: (x: number, y: number, size: number, seed: number) => string;
-  count: number;
-}
-
-const TILE_RECIPES: Record<TerrainId, TileRecipe> = {
-  hills: {
-    top: '#a9e08a',
-    bottom: '#7fc46a',
-    count: 26,
-    marks: (x, y, size) =>
-      `<path d="M ${x} ${y} q ${size * 0.4} ${-size} ${size * 0.9} ${-size * 0.2}" ` +
-      `fill="none" stroke="#5fae57" stroke-width="${size * 0.22}" stroke-linecap="round" opacity="0.55"/>`,
-  },
-  meadow: {
-    top: '#b6e893',
-    bottom: '#8ed07a',
-    count: 22,
-    marks: (x, y, size, seed) =>
-      seed > 0.55
-        ? `<circle cx="${x}" cy="${y}" r="${size * 0.3}" fill="${['#ff8fb1', '#ffd45e', '#b98cff'][Math.floor(seed * 3) % 3]}" opacity="0.85"/>`
-        : `<path d="M ${x} ${y} l ${size * 0.2} ${-size * 0.8}" stroke="#63b06a" stroke-width="${size * 0.18}" stroke-linecap="round" opacity="0.6"/>`,
-  },
-  water: {
-    top: '#7fd4ee',
-    bottom: '#3fa6cf',
-    count: 18,
-    marks: (x, y, size) =>
-      `<path d="M ${x - size} ${y} q ${size * 0.5} ${-size * 0.5} ${size} 0 q ${size * 0.5} ${size * 0.5} ${size} 0" ` +
-      `fill="none" stroke="#ffffff" stroke-width="${size * 0.2}" stroke-linecap="round" opacity="0.45"/>`,
-  },
-  caves: {
-    top: '#b9b3a6',
-    bottom: '#8f887b',
-    count: 24,
-    marks: (x, y, size, seed) =>
-      `<ellipse cx="${x}" cy="${y}" rx="${size * 0.9}" ry="${size * 0.55}" ` +
-      `fill="${seed > 0.5 ? '#6f6a60' : '#cfc8ba'}" opacity="0.5"/>`,
-  },
-  forest: {
-    top: '#8fd08d',
-    bottom: '#5da966',
-    count: 28,
-    marks: (x, y, size, seed) =>
-      `<ellipse cx="${x}" cy="${y}" rx="${size * 0.7}" ry="${size * 0.32}" ` +
-      `fill="${seed > 0.5 ? '#3f8f52' : '#a8dda0'}" opacity="0.5" ` +
-      `transform="rotate(${Math.round(seed * 90 - 45)} ${x} ${y})"/>`,
-  },
-  village: {
-    top: '#e3d9c2',
-    bottom: '#c8bda3',
-    count: 30,
-    marks: (x, y, size, seed) =>
-      `<rect x="${x}" y="${y}" width="${size * 1.6}" height="${size * 1.1}" rx="${size * 0.35}" ` +
-      `fill="${seed > 0.5 ? '#d5c9ae' : '#efe6d2'}" opacity="0.75" ` +
-      `transform="rotate(${Math.round(seed * 30 - 15)} ${x} ${y})"/>`,
-  },
-  beach: {
-    top: '#f7e3b0',
-    bottom: '#ecc987',
-    count: 26,
-    marks: (x, y, size, seed) =>
-      seed > 0.8
-        ? `<path d="M ${x - size * 0.5} ${y} q ${size * 0.5} ${-size * 0.9} ${size} 0 z" fill="#ffc9c2" opacity="0.8"/>`
-        : `<circle cx="${x}" cy="${y}" r="${size * 0.14}" fill="${seed > 0.4 ? '#d9b26e' : '#fff4d6'}" opacity="0.8"/>`,
-  },
-};
-
-/** One seamless ground tile. Repeat it to fill a region. */
+/** One seamless ground tile, from the terrain's recipe. Repeat it to fill a region. */
 export function terrainTileSvg(terrain: TerrainId): string {
-  const recipe = TILE_RECIPES[terrain];
+  const recipe = terrainDef(terrain).tile;
   const marks: string[] = [];
 
   for (let i = 0; i < recipe.count; i++) {
@@ -272,7 +139,7 @@ function contactShadow(cx: number, cy: number, rx: number): string {
   return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.34}" fill="#2c2440" opacity="0.2"/>`;
 }
 
-const PROP_BODIES: Record<SceneryKind, string> = {
+const PROP_BODIES: Record<DrawnPropKind, string> = {
   tree:
     contactShadow(64, 116, 34) +
     `<rect x="57" y="82" width="14" height="34" rx="6" fill="${TIMBER}"/>` +
@@ -339,27 +206,21 @@ const PROP_BODIES: Record<SceneryKind, string> = {
     `<circle cx="84" cy="94" r="6" fill="none" stroke="#d9b26e" stroke-width="2.5"/>`,
 };
 
+/** The drawing a prop falls back on: its own, or the one it `looksLike`. */
+export function drawingFor(kind: PropKind): DrawnPropKind | undefined {
+  return isDrawnProp(kind) ? kind : PROPS[kind].looksLike;
+}
+
 /**
- * One scenery sprite, on a transparent background. A themed piece borrows the
- * drawing of the scenery it is closest to, since it is meant to be generated.
+ * One scenery sprite, on a transparent background. A prop without a drawing of
+ * its own borrows the one it looks like, since it is meant to be generated.
  */
 export function propSvg(kind: PropKind): string {
-  const body = kind in PROP_BODIES ? kind : THEMED_FALLBACKS[kind as keyof typeof THEMED_FALLBACKS];
-  return svgDocument(PROP_SIZE, PROP_SIZE, PROP_BODIES[body as SceneryKind]);
+  const drawing = drawingFor(kind);
+  return svgDocument(PROP_SIZE, PROP_SIZE, drawing ? PROP_BODIES[drawing] : '');
 }
 
 // ── Placing them ─────────────────────────────────────────────────────────────
-
-/** Which props each terrain scatters, in rough order of how often. */
-const TERRAIN_PROPS: Record<TerrainId, PropKind[]> = {
-  hills: ['tree', 'boulder', 'flower'],
-  meadow: ['flower', 'tree', 'flower'],
-  water: ['pond', 'pond', 'flower'],
-  caves: ['boulder', 'boulder', 'pine'],
-  forest: ['tree', 'pine', 'tree'],
-  village: ['cottage', 'cottage', 'tree'],
-  beach: ['palm', 'shells', 'shells'],
-};
 
 export interface PlacedProp {
   id: string;
@@ -378,8 +239,9 @@ export interface PlacedProp {
  * it, and biases them towards the rim, which is where the spots are not.
  */
 export function placeProps(region: MapRegion, spots: MapSpot[]): PlacedProp[] {
-  const kinds = TERRAIN_PROPS[region.terrain];
-  const count = region.terrain === 'village' ? 12 : 20;
+  const terrain = terrainDef(region.terrain);
+  const kinds = terrain.scenery;
+  const count = terrain.sceneryCount;
   const placed: PlacedProp[] = [];
 
   for (let i = 0; i < count; i++) {
@@ -393,17 +255,16 @@ export function placeProps(region: MapRegion, spots: MapSpot[]): PlacedProp[] {
     if (spots.some((spot) => Math.hypot(spot.x - x, spot.y - y) < 78)) continue;
     if (placed.some((prop) => Math.hypot(prop.x - x, prop.y - y) < 56)) continue;
 
-    // Shells are pocket-sized; at tree size they tower over everything.
     const kind =
       kinds[Math.floor(noise(`${region.id}-k-${i}`) * kinds.length) % kinds.length];
+    // Some scenery is small by nature; at tree size shells tower over everything.
+    const scale = PROPS[kind].scale ?? 1;
     placed.push({
       id: `${region.id}-${i}`,
       kind,
       x,
       y,
-      size: Math.round(
-        (74 + noise(`${region.id}-s-${i}`) * 46) * (kind === 'shells' ? 0.5 : 1),
-      ),
+      size: Math.round((74 + noise(`${region.id}-s-${i}`) * 46) * scale),
       flipped: noise(`${region.id}-f-${i}`) > 0.5,
     });
   }
@@ -472,51 +333,3 @@ function escapeText(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
-
-/** How a generation prompt should describe each kind of ground. */
-export const TERRAIN_DESCRIPTIONS: Record<TerrainId, string> = {
-  hills: 'sunlit rolling grass, short and springy, with a few tufts',
-  water: 'clear shallow blue-green water with gentle ripples',
-  caves: 'grey mossy rock and loose scree',
-  forest: 'shady forest floor with fallen leaves and moss',
-  village: 'worn cobblestones and pale flagstones',
-  meadow: 'long meadow grass strewn with tiny wildflowers',
-  beach: 'soft golden beach sand with a few tiny pebbles and flecks of shell',
-};
-
-/** How a generation prompt should describe each scenery sprite. */
-export const PROP_DESCRIPTIONS: Record<PropKind, string> = {
-  tree: 'a single round leafy broadleaf tree',
-  pine: 'a single tall pointed pine tree',
-  boulder: 'a single mossy grey boulder with a small dark cave mouth in it',
-  cottage: 'a single small cottage with a red roof and a round window',
-  pond: 'a small round pond with lily pads and a flower',
-  flower: 'a single large pink flower with a yellow centre on a green stem',
-  palm: 'a single small leaning palm tree with a few coconuts',
-  shells: 'a little cluster of three pretty seashells, a scallop, a spiral and a pink one',
-
-  // What grows at a place as it is won.
-  windmill: 'a single cheerful wooden windmill with four white sails on a small grassy mound',
-  lilypad: 'a single big round green lily pad floating on a little patch of water, with a pink water lily in bloom on it',
-  cave: 'a single rocky hillock of grey stones with a dark arched cave entrance in the front',
-  oak: 'a single big old oak tree with a thick trunk and a wide, full, round crown of leaves',
-  townhouse: 'a single charming two-storey town house with a blue door, window boxes of flowers and a tiled roof',
-  sunflower: 'a single tall sunflower with a big golden flower head and broad green leaves',
-  sandcastle: 'a single sandcastle with three towers, crenellations and a little red flag on top',
-
-  // The extra piece each region is given at random.
-  sheep: 'a single fluffy white sheep standing on four little black legs',
-  haybarn: 'a single small red wooden barn with a white-trimmed door and hay poking out',
-  rowboat: 'a single small wooden rowing boat with two oars resting inside it',
-  duckhouse: 'a single little wooden duck house on a floating raft, with a yellow duck beside it',
-  crystals: 'a single cluster of glowing purple and blue crystals growing from a grey rock',
-  minecart: 'a single old wooden mine cart full of shiny rocks, on a short piece of track',
-  mushrooms: 'a single group of three red-capped toadstools with white spots',
-  logcabin: 'a single small log cabin with a mossy roof and a stone chimney',
-  well: 'a single round stone wishing well with a little wooden roof and a bucket',
-  fruitstall: 'a single small market stall with a striped awning and crates of colourful fruit',
-  beehive: 'a single old-fashioned straw beehive on a wooden stand, with two bees',
-  scarecrow: 'a single friendly scarecrow in a straw hat and patched shirt on a pole',
-  parasol: 'a single striped beach umbrella above a folded beach towel and a bucket and spade',
-  lighthouse: 'a single small red and white striped lighthouse on a few rocks',
-};

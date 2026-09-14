@@ -5,6 +5,7 @@ import {
   PackSelection,
   Question,
   QuestionPack,
+  completeSet,
   makeChoice,
   selected,
 } from '../question.types';
@@ -81,32 +82,28 @@ const TOPICS_OPTION: PackOption = {
  * numbers, which are a closed set of eleven and belong to no topic.
  */
 const FRENCH_CHALLENGES: Challenge[] = [
-  ...TOPICS_OPTION.choices.map((choice): Challenge => {
+  ...TOPICS_OPTION.choices.map((choice) => {
     const words = WORDS.filter((word) => word.topic === choice.value);
-    return {
+    return completeSet({
       id: `french.topic.${choice.value}`,
       name: `${choice.label} in French`,
       short: choice.emoji ?? choice.label,
       emoji: choice.emoji ?? '🇫🇷',
-      goal: `Get all ${words.length} right!`,
       requires: { optionId: TOPICS_OPTION.id, value: choice.value },
+      items: words,
       // Distractors come from the same topic, exactly as in a normal round, so
       // the emoji cannot give the answer away.
-      deck: (rng: Rng) =>
-        rng.shuffle(words).map((word) => frenchToEnglishFor(rng, word, words)),
-    };
+      ask: (rng, word) => frenchToEnglishFor(rng, word, words),
+    });
   }),
-  {
+  completeSet({
     id: 'french.numbers',
     name: 'Zéro to dix',
     short: '🔢',
     emoji: '🔢',
-    goal: `Get all ${NUMBERS.length} right!`,
-    deck: (rng: Rng) =>
-      rng
-        .shuffle(NUMBERS.map((_, value) => value))
-        .map((value) => numberFor(rng, value)),
-  },
+    items: NUMBERS.map((_, value) => value),
+    ask: numberFor,
+  }),
 ];
 
 export const frenchPack: QuestionPack = {
