@@ -47,7 +47,16 @@ import {
   svgDataUrl,
   terrainTileSvg,
 } from '../../explore/map-art';
-import { BuildStage, buildDataUrl, stageFor } from '../../explore/spot-build';
+import {
+  BuildStage,
+  EXTRA_WIDTH,
+  ExtraRoll,
+  buildFor,
+  isValidRoll,
+  placeExtra,
+  rollExtra,
+  stageFor,
+} from '../../explore/spot-build';
 import {
   MAP_HEIGHT,
   MAP_WIDTH,
@@ -80,7 +89,8 @@ interface SpotView {
   region: MapRegion;
   badges: BadgeId[];
   stage: BuildStage;
-  build: string;
+  /** What has grown there so far, or nothing yet. */
+  build: { src: string; width: number } | null;
   available: boolean;
   /** Why it is shut, when it is. */
   closedBecause: string | null;
@@ -91,6 +101,14 @@ interface PlacedPrize {
   prize: Prize;
   x: number;
   y: number;
+}
+
+interface ExtraView {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  src: string;
 }
 
 interface RegionView {
@@ -188,10 +206,41 @@ export class MapPage {
   private frame: number | null = null;
   private lastFrameAt = 0;
 
-  /** Every place on the map, with what has been built there. */
+  /**
+   * Each region's extra piece — a barn, a well, a lighthouse — picked at random
+   * the first time the map is opened and kept. A fresh start erases it with
+   * everything else under `klg.`, so the next map rolls a new set.
+   */
+  private readonly extraRolls = storedSignal<Record<string, ExtraRoll>>(
+    'klg.mapExtras',
+    {},
+  );
+
+  readonly extras = computed<ExtraView[]>(() => {
+    const rolls = this.extraRolls();
+    return this.layout.regions.flatMap((region) => {
+      const roll = rolls[region.id];
+      if (!isValidRoll(region.terrain, roll)) return [];
+      const spots = this.layout.spots.filter((spot) => spot.regionId === region.id);
+      return [
+        {
+          id: region.id,
+          ...placeExtra(region, spots, roll.seed),
+          width: EXTRA_WIDTH,
+          src: this.media.mapProp(roll.kind) ?? svgDataUrl(propSvg(roll.kind)),
+        },
+      ];
+    });
+  });
+
+  /**
+   * Every place on the map, with what has grown there. Nearest last, so a big
+   * oak in the front row overlaps the one behind it rather than being cut by it.
+   */
   readonly spots = computed<SpotView[]>(() => {
     this.mastery.all();
-    return this.layout.spots.flatMap((spot) => {
+    const nearestLast = [...this.layout.spots].sort((a, b) => a.y - b.y);
+    return nearestLast.flatMap((spot) => {
       const ref = findChallenge(spot.challengeId);
       const region = this.layout.regions.find((r) => r.id === spot.regionId);
       if (!ref || !region) return [];
@@ -199,6 +248,7 @@ export class MapPage {
       const available = isChallengeAvailable(ref, selection);
       const badges = this.mastery.badgesForChallenge(spot.challengeId);
       const stage = stageFor(badges);
+      const grown = buildFor(region.terrain, stage);
       const href = this.router.hrefForView(Views.Play, { packId: ref.pack.id });
       return [
         {
@@ -207,7 +257,10 @@ export class MapPage {
           region,
           badges,
           stage,
-          build: buildDataUrl(region.terrain, stage, region.colour),
+          build: grown && {
+            width: grown.width,
+            src: this.media.mapProp(grown.kind) ?? svgDataUrl(propSvg(grown.kind)),
+          },
           available,
           closedBecause: available ? null : this.closedReason(ref),
           playHref: withParam(href, 'challenge', spot.challengeId),
@@ -281,6 +334,7 @@ export class MapPage {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.stopWalking());
+    this.rollMissingExtras();
 
     // The opening shot. The effect below only fires when she moves, and on
     // arrival she has not moved yet — so without this the map opens at its
@@ -312,6 +366,21 @@ export class MapPage {
       return clampToMap(last, { width: this.mapWidth, height: this.mapHeight });
     }
     return { ...this.layout.start };
+  }
+
+  /**
+   * Rolls an extra for any region without a usable one: a fresh start, a region
+   * added since, or a stored piece its terrain no longer offers.
+   */
+  private rollMissingExtras(): void {
+    const rolls = { ...this.extraRolls() };
+    let changed = false;
+    for (const region of this.layout.regions) {
+      if (isValidRoll(region.terrain, rolls[region.id])) continue;
+      rolls[region.id] = rollExtra(region.terrain, Math.random);
+      changed = true;
+    }
+    if (changed) this.extraRolls.set(rolls);
   }
 
   private closedReason(ref: ChallengeRef): string {

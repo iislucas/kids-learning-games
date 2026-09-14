@@ -212,12 +212,17 @@ too, for a laptop.
 
 Three things make the map the collection screen as well as the menu:
 
-- **What she has built at each place** shows how far in she is: an empty
-  signpost, then walls up, then the finished thing with a flag or a beacon.
-  Each region builds something of its own — a jetty and a boat on the ponds, a
-  treehouse in the wood, a cairn on the hills — so a finished place is
-  recognisable from across the map. See
+- **What has grown at each place** shows how far in she is. A place starts
+  empty, just its name on bare ground. The gold star grows a small landmark
+  there, and the crown grows it big. Each region has its own: a windmill on the
+  hills, a lily pad on the ponds, a cave in the caves, an oak in the wood, a
+  town house in the village, a sunflower in the meadow and a sandcastle on the
+  beach. A finished place is recognisable from across the map. See
   [`spot-build.ts`](src/app/explore/spot-build.ts).
+- **Each region gets one extra piece at random** — a sheep or a hay barn on the
+  hills, a rowing boat or a duck house on the ponds, a lighthouse or a beach
+  umbrella on the beach. It is rolled the first time the map opens and kept in
+  `klg.mapExtras`, so a fresh start rolls a new set.
 - **Prizes sit where they were won.** They unlock on a cumulative star total,
   which knows nothing about place, so the place is recorded as it happens
   (`prizePlaces` in [`progress.service.ts`](src/app/core/progress.service.ts)).
@@ -283,7 +288,10 @@ several collections pulls harder than finishing one at a time.
 
 Collected prizes are drawn faintly **behind the game itself**
 ([`prize-backdrop`](src/app/components/prize-backdrop/prize-backdrop.ts)), so the
-collection is visible while playing rather than only on a separate screen. Each
+collection is visible while playing rather than only on a separate screen. It
+shows only what was won *here*: a challenge shows the prizes won in that
+challenge, so the −7 and −8 families each have their own, and an ordinary round
+shows everything won in its region. Each
 prize holds one fixed slot forever, and slots fill in golden-ratio order so the
 scatter stays balanced at any collection size instead of piling up in one
 corner. A prize won mid-round pops into place and stays brighter for the rest of
@@ -314,8 +322,8 @@ The repo ships a complete default pack, so a fresh clone is fully playable and
 looks finished with no API keys at all. It comes from two places:
 
 - **The pictures are generated** — two sprite sheets each for **Momo** the fox
-  and **Kai** the sea-dragon, the map's six ground tiles and six scenery
-  sprites, and a picture for each of the 27 spelling words — made in the media studio with Gemini and committed. They are
+  and **Kai** the sea-dragon, the map's seven ground tiles and its scenery,
+  landmark and extra-piece sprites, and a picture for each of the 27 spelling words — made in the media studio with Gemini and committed. They are
   WebP, which keeps the transparency a sprite sheet and a cut-out prop both need
   at about a tenth of the equivalent PNG; the whole media folder is about 1.5 MB.
 

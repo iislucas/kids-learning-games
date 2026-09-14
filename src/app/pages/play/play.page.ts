@@ -178,14 +178,23 @@ export class PlayPage {
   readonly stars = this.progress.stars;
 
   /**
-   * The prizes won in this round's region, and only those: the backdrop is a
-   * record of what she has done here, the same heap the map shows lying in
-   * this part of the landscape.
+   * The prizes won right here, and only those: the backdrop is a record of what
+   * she has done in this place.
+   *
+   * A challenge is its own place, so the −7 and −8 families each show their own
+   * prizes rather than sharing the Take-Away Caves' heap. An ordinary round has
+   * no spot, so it shows everything won in its region.
    */
   readonly prizesWonHere = computed(() => {
+    const places = this.progress.prizePlaces();
+    const challengeId = this.challenge()?.id;
+    if (challengeId) {
+      return this.progress
+        .unlockedPrizes()
+        .filter((prize) => places[prize.id] === challengeId);
+    }
     const regionId = this.region()?.id;
     if (!regionId) return [];
-    const places = this.progress.prizePlaces();
     return this.progress
       .unlockedPrizes()
       .filter(

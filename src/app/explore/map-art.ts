@@ -34,19 +34,62 @@ export const TERRAIN_IDS: TerrainId[] = [
   'forest',
   'village',
   'meadow',
+  'beach',
 ];
 
-/** The scenery pieces. One image each, when they are generated. */
-export const PROP_KINDS = [
+/** The scattered scenery, each with a drawn fallback of its own. */
+const SCENERY_KINDS = [
   'tree',
   'pine',
   'boulder',
   'cottage',
   'pond',
   'flower',
+  'palm',
+  'shells',
 ] as const;
 
-export type PropKind = (typeof PROP_KINDS)[number];
+type SceneryKind = (typeof SCENERY_KINDS)[number];
+
+/**
+ * What grows at a place as it is won, and the one extra piece each region is
+ * given at random. See `TERRAIN_THEMES` in `spot-build.ts` for which is which.
+ *
+ * These are only ever meant to be generated pictures. Each borrows the drawing
+ * of the nearest scenery piece as a fallback, which is good enough for a pack
+ * whose art has been cleared and not worth a hand-drawn SVG apiece.
+ */
+const THEMED_FALLBACKS = {
+  windmill: 'cottage',
+  lilypad: 'pond',
+  cave: 'boulder',
+  oak: 'tree',
+  townhouse: 'cottage',
+  sunflower: 'flower',
+  sandcastle: 'boulder',
+  sheep: 'boulder',
+  haybarn: 'cottage',
+  rowboat: 'pond',
+  duckhouse: 'cottage',
+  crystals: 'boulder',
+  minecart: 'boulder',
+  mushrooms: 'flower',
+  logcabin: 'cottage',
+  well: 'boulder',
+  fruitstall: 'cottage',
+  beehive: 'boulder',
+  scarecrow: 'tree',
+  parasol: 'flower',
+  lighthouse: 'pine',
+} as const satisfies Record<string, SceneryKind>;
+
+/** Every picture the map can use. One image each, when they are generated. */
+export const PROP_KINDS = [
+  ...SCENERY_KINDS,
+  ...(Object.keys(THEMED_FALLBACKS) as (keyof typeof THEMED_FALLBACKS)[]),
+];
+
+export type PropKind = SceneryKind | keyof typeof THEMED_FALLBACKS;
 
 /** Tiles are square and repeat; props are drawn in a box this size. */
 export const TILE_SIZE = 256;
@@ -180,6 +223,15 @@ const TILE_RECIPES: Record<TerrainId, TileRecipe> = {
       `fill="${seed > 0.5 ? '#d5c9ae' : '#efe6d2'}" opacity="0.75" ` +
       `transform="rotate(${Math.round(seed * 30 - 15)} ${x} ${y})"/>`,
   },
+  beach: {
+    top: '#f7e3b0',
+    bottom: '#ecc987',
+    count: 26,
+    marks: (x, y, size, seed) =>
+      seed > 0.8
+        ? `<path d="M ${x - size * 0.5} ${y} q ${size * 0.5} ${-size * 0.9} ${size} 0 z" fill="#ffc9c2" opacity="0.8"/>`
+        : `<circle cx="${x}" cy="${y}" r="${size * 0.14}" fill="${seed > 0.4 ? '#d9b26e' : '#fff4d6'}" opacity="0.8"/>`,
+  },
 };
 
 /** One seamless ground tile. Repeat it to fill a region. */
@@ -220,7 +272,7 @@ function contactShadow(cx: number, cy: number, rx: number): string {
   return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.34}" fill="#2c2440" opacity="0.2"/>`;
 }
 
-const PROP_BODIES: Record<PropKind, string> = {
+const PROP_BODIES: Record<SceneryKind, string> = {
   tree:
     contactShadow(64, 116, 34) +
     `<rect x="57" y="82" width="14" height="34" rx="6" fill="${TIMBER}"/>` +
@@ -270,11 +322,30 @@ const PROP_BODIES: Record<PropKind, string> = {
     `<circle cx="64" cy="52" r="24" fill="#ff8fb1"/>` +
     `<circle cx="56" cy="44" r="13" fill="#ffb7cf"/>` +
     `<circle cx="64" cy="52" r="10" fill="#ffd45e"/>`,
+
+  palm:
+    contactShadow(64, 118, 26) +
+    `<path d="M 64 118 q -10 -40 6 -78" stroke="${TIMBER}" stroke-width="9" fill="none" stroke-linecap="round"/>` +
+    `<path d="M 70 40 q -30 -16 -54 6 q 26 -6 54 -6 z" fill="${FOLIAGE}"/>` +
+    `<path d="M 70 40 q 30 -16 50 8 q -24 -8 -50 -8 z" fill="${FOLIAGE}"/>` +
+    `<path d="M 70 40 q -8 -30 -32 -32 q 20 12 32 32 z" fill="${shade(FOLIAGE, 0.25)}"/>` +
+    `<path d="M 70 40 q 12 -28 36 -26 q -22 8 -36 26 z" fill="${shade(FOLIAGE, 0.25)}"/>`,
+
+  shells:
+    contactShadow(64, 104, 30) +
+    `<path d="M 34 102 q 14 -34 30 0 z" fill="#ffc9c2"/>` +
+    `<path d="M 42 102 l 7 -22 l 7 22" stroke="#e79a8f" stroke-width="2" fill="none"/>` +
+    `<circle cx="84" cy="94" r="12" fill="#fff0d6"/>` +
+    `<circle cx="84" cy="94" r="6" fill="none" stroke="#d9b26e" stroke-width="2.5"/>`,
 };
 
-/** One scenery sprite, on a transparent background. */
+/**
+ * One scenery sprite, on a transparent background. A themed piece borrows the
+ * drawing of the scenery it is closest to, since it is meant to be generated.
+ */
 export function propSvg(kind: PropKind): string {
-  return svgDocument(PROP_SIZE, PROP_SIZE, PROP_BODIES[kind]);
+  const body = kind in PROP_BODIES ? kind : THEMED_FALLBACKS[kind as keyof typeof THEMED_FALLBACKS];
+  return svgDocument(PROP_SIZE, PROP_SIZE, PROP_BODIES[body as SceneryKind]);
 }
 
 // ── Placing them ─────────────────────────────────────────────────────────────
@@ -287,6 +358,7 @@ const TERRAIN_PROPS: Record<TerrainId, PropKind[]> = {
   caves: ['boulder', 'boulder', 'pine'],
   forest: ['tree', 'pine', 'tree'],
   village: ['cottage', 'cottage', 'tree'],
+  beach: ['palm', 'shells', 'shells'],
 };
 
 export interface PlacedProp {
@@ -321,12 +393,17 @@ export function placeProps(region: MapRegion, spots: MapSpot[]): PlacedProp[] {
     if (spots.some((spot) => Math.hypot(spot.x - x, spot.y - y) < 78)) continue;
     if (placed.some((prop) => Math.hypot(prop.x - x, prop.y - y) < 56)) continue;
 
+    // Shells are pocket-sized; at tree size they tower over everything.
+    const kind =
+      kinds[Math.floor(noise(`${region.id}-k-${i}`) * kinds.length) % kinds.length];
     placed.push({
       id: `${region.id}-${i}`,
-      kind: kinds[Math.floor(noise(`${region.id}-k-${i}`) * kinds.length) % kinds.length],
+      kind,
       x,
       y,
-      size: Math.round(74 + noise(`${region.id}-s-${i}`) * 46),
+      size: Math.round(
+        (74 + noise(`${region.id}-s-${i}`) * 46) * (kind === 'shells' ? 0.5 : 1),
+      ),
       flipped: noise(`${region.id}-f-${i}`) > 0.5,
     });
   }
@@ -404,6 +481,7 @@ export const TERRAIN_DESCRIPTIONS: Record<TerrainId, string> = {
   forest: 'shady forest floor with fallen leaves and moss',
   village: 'worn cobblestones and pale flagstones',
   meadow: 'long meadow grass strewn with tiny wildflowers',
+  beach: 'soft golden beach sand with a few tiny pebbles and flecks of shell',
 };
 
 /** How a generation prompt should describe each scenery sprite. */
@@ -414,4 +492,31 @@ export const PROP_DESCRIPTIONS: Record<PropKind, string> = {
   cottage: 'a single small cottage with a red roof and a round window',
   pond: 'a small round pond with lily pads and a flower',
   flower: 'a single large pink flower with a yellow centre on a green stem',
+  palm: 'a single small leaning palm tree with a few coconuts',
+  shells: 'a little cluster of three pretty seashells, a scallop, a spiral and a pink one',
+
+  // What grows at a place as it is won.
+  windmill: 'a single cheerful wooden windmill with four white sails on a small grassy mound',
+  lilypad: 'a single big round green lily pad floating on a little patch of water, with a pink water lily in bloom on it',
+  cave: 'a single rocky hillock of grey stones with a dark arched cave entrance in the front',
+  oak: 'a single big old oak tree with a thick trunk and a wide, full, round crown of leaves',
+  townhouse: 'a single charming two-storey town house with a blue door, window boxes of flowers and a tiled roof',
+  sunflower: 'a single tall sunflower with a big golden flower head and broad green leaves',
+  sandcastle: 'a single sandcastle with three towers, crenellations and a little red flag on top',
+
+  // The extra piece each region is given at random.
+  sheep: 'a single fluffy white sheep standing on four little black legs',
+  haybarn: 'a single small red wooden barn with a white-trimmed door and hay poking out',
+  rowboat: 'a single small wooden rowing boat with two oars resting inside it',
+  duckhouse: 'a single little wooden duck house on a floating raft, with a yellow duck beside it',
+  crystals: 'a single cluster of glowing purple and blue crystals growing from a grey rock',
+  minecart: 'a single old wooden mine cart full of shiny rocks, on a short piece of track',
+  mushrooms: 'a single group of three red-capped toadstools with white spots',
+  logcabin: 'a single small log cabin with a mossy roof and a stone chimney',
+  well: 'a single round stone wishing well with a little wooden roof and a bucket',
+  fruitstall: 'a single small market stall with a striped awning and crates of colourful fruit',
+  beehive: 'a single old-fashioned straw beehive on a wooden stand, with two bees',
+  scarecrow: 'a single friendly scarecrow in a straw hat and patched shirt on a pole',
+  parasol: 'a single striped beach umbrella above a folded beach towel and a bucket and spade',
+  lighthouse: 'a single small red and white striped lighthouse on a few rocks',
 };

@@ -31,7 +31,7 @@ export interface MapRegion {
   rx: number;
   ry: number;
   /** Terrain the art should draw here. */
-  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves';
+  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves' | 'beach';
   /**
    * Which levels of an ordinary round belong here, for a pack split across
    * several regions. Maths is: adding happens at the ponds and times tables in
@@ -60,7 +60,7 @@ export interface MapLayout {
 }
 
 /**
- * Six lands in two columns around a crossroads, plus the Counting Garden along
+ * Six lands in two columns around a crossroads, plus the Counting Beach along
  * the bottom for the youngest players. The columns keep the three maths regions
  * together, each a short walk from where she starts.
  */
@@ -162,18 +162,19 @@ const REGION_PLANS: RegionPlan[] = [
   },
   {
     // Along the bottom, below both columns: counting is for the youngest
-    // players, and one row of four spots fits a wide, shallow strip.
+    // players, and one row of four spots fits a wide, shallow strip. A beach,
+    // so it looks like nowhere else on the map.
     id: 'counting',
     packId: 'counting',
     prefix: 'counting.',
-    name: 'Counting Garden',
-    emoji: '🌼',
+    name: 'Counting Beach',
+    emoji: '🐚',
     colour: '#f29a2e',
     cx: 870,
     cy: 1590,
     rx: 420,
     ry: 170,
-    terrain: 'meadow',
+    terrain: 'beach',
     perRow: 4,
   },
 ];

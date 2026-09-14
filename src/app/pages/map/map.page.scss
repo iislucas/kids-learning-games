@@ -155,9 +155,12 @@
 /* A place to play: what she has built there, with its name under it. */
 .place {
   position: absolute;
-  transform: translate(-50%, -78%);
+  /* The label sits on the spot and whatever has grown rises above it, so a big
+     landmark grows upwards rather than sliding the label about. */
+  transform: translate(-50%, calc(-100% + 14px));
   display: grid;
   justify-items: center;
+  align-content: end;
   gap: 1px;
   min-width: var(--tap);
   min-height: var(--tap);
@@ -172,8 +175,25 @@
 
 .place__build {
   display: block;
-  width: 66px;
-  height: 62px;
+  height: auto;
+  /* Its foot overlaps the label a little, so it stands on the spot. */
+  margin-bottom: -8px;
+  filter: drop-shadow(0 4px 3px rgba(44, 36, 64, 0.22));
+}
+
+/* Nothing grown yet: a patch of bare earth waiting for something. */
+.place__plot {
+  display: block;
+  width: 46px;
+  height: 16px;
+  margin-bottom: -4px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(120, 88, 52, 0.45), rgba(120, 88, 52, 0));
+}
+
+.prop--extra {
+  transform: translate(-50%, -86%);
+  filter: drop-shadow(0 4px 3px rgba(44, 36, 64, 0.2));
 }
 
 .place__label {
@@ -196,7 +216,7 @@
 }
 
 .place:active {
-  transform: translate(-50%, calc(-78% + 3px));
+  transform: translate(-50%, calc(-100% + 17px));
 }
 
 /* A category that has been switched off keeps its place and says so, rather

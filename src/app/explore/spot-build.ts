@@ -1,23 +1,54 @@
+import { PropKind, TerrainId, noise } from './map-art';
+import { MapRegion, MapSpot } from './map-layout';
+
 /**
- * What the fox builds at each place, drawn in three states.
+ * What grows at each place as it is won.
  *
  * The badges are the reward, but a row of identical signposts makes a map where
- * the only way to see progress is to read every label. A thing that visibly
- * grows — bare plot, walls up, finished with a flag — turns the whole landscape
- * into the progress bar, readable at a glance and from across the map.
+ * the only way to see progress is to read every label. Something that visibly
+ * grows turns the whole landscape into the progress bar, readable at a glance
+ * and from across the map.
  *
- * Each region builds something of its own, so a finished Word Wood does not
- * look like a finished Adding Pond.
+ * So a place starts out empty — just its name on bare ground — and each region
+ * grows its own landmark there: a small one for the gold star, a big one for
+ * the crown. A sapling becomes an oak in Word Wood, a lily pad spreads on the
+ * Adding Ponds. The landmarks are pictures from the media pack, the same as the
+ * scenery, so a finished place looks like it belongs to the land around it.
  *
- * Pure string-building, Angular-free, so it can be unit-tested and reused by
- * the generator script if it ever wants it.
+ * Each region is also given one extra piece at random — a barn, a well, a
+ * lighthouse — which is rolled again after a fresh start, so no two playthroughs
+ * dress the map quite the same.
+ *
+ * Pure and Angular-free, so it can be unit-tested.
  */
 
 export type BuildStage = 'plot' | 'started' | 'finished';
 
-/** The box every build is drawn in. */
-export const BUILD_WIDTH = 64;
-export const BUILD_HEIGHT = 60;
+export interface TerrainTheme {
+  /** Grows at every place in the region: small when started, big when finished. */
+  landmark: PropKind;
+  /** One of these is picked at random for the region. */
+  extras: PropKind[];
+}
+
+export const TERRAIN_THEMES: Record<TerrainId, TerrainTheme> = {
+  hills: { landmark: 'windmill', extras: ['sheep', 'haybarn'] },
+  water: { landmark: 'lilypad', extras: ['rowboat', 'duckhouse'] },
+  caves: { landmark: 'cave', extras: ['crystals', 'minecart'] },
+  forest: { landmark: 'oak', extras: ['mushrooms', 'logcabin'] },
+  village: { landmark: 'townhouse', extras: ['well', 'fruitstall'] },
+  meadow: { landmark: 'sunflower', extras: ['beehive', 'scarecrow'] },
+  beach: { landmark: 'sandcastle', extras: ['parasol', 'lighthouse'] },
+};
+
+/** Rendered widths in map pixels; heights follow each picture's own shape. */
+export const BUILD_WIDTHS: Record<Exclude<BuildStage, 'plot'>, number> = {
+  started: 62,
+  finished: 118,
+};
+
+/** Smaller than a finished landmark, so the places stay the main event. */
+export const EXTRA_WIDTH = 92;
 
 /** Which stage a place is at, from the badges won there. */
 export function stageFor(badges: readonly string[]): BuildStage {
@@ -26,166 +57,74 @@ export function stageFor(badges: readonly string[]): BuildStage {
   return 'plot';
 }
 
-function shade(colour: string, amount: number): string {
-  const value = parseInt(colour.slice(1), 16);
-  const towards = amount >= 0 ? 255 : 0;
-  const strength = Math.abs(amount);
-  const channel = (shift: number) => {
-    const base = (value >> shift) & 0xff;
-    return Math.round(base + (towards - base) * strength);
+/** What stands at a place, or nothing yet. */
+export function buildFor(
+  terrain: TerrainId,
+  stage: BuildStage,
+): { kind: PropKind; width: number } | null {
+  if (stage === 'plot') return null;
+  return { kind: TERRAIN_THEMES[terrain].landmark, width: BUILD_WIDTHS[stage] };
+}
+
+/** A region's extra piece, as rolled and stored. */
+export interface ExtraRoll {
+  kind: PropKind;
+  /** Where it goes, as a seed for `placeExtra`. */
+  seed: number;
+}
+
+/**
+ * Picks a region's extra piece. `random` is `Math.random` in the game and a
+ * fixed sequence in the tests.
+ */
+export function rollExtra(terrain: TerrainId, random: () => number): ExtraRoll {
+  const extras = TERRAIN_THEMES[terrain].extras;
+  return {
+    kind: extras[Math.floor(random() * extras.length) % extras.length],
+    seed: Math.floor(random() * 1_000_000),
   };
-  const hex = (n: number) => n.toString(16).padStart(2, '0');
-  return `#${hex(channel(16))}${hex(channel(8))}${hex(channel(0))}`;
 }
 
-const TIMBER = '#a9793f';
-const TIMBER_DARK = '#7c5326';
-const STONE = '#cfc6b4';
+/** Whether a stored roll still fits the region, or needs rolling again. */
+export function isValidRoll(terrain: TerrainId, roll: unknown): roll is ExtraRoll {
+  if (typeof roll !== 'object' || roll === null) return false;
+  const { kind, seed } = roll as Partial<ExtraRoll>;
+  return (
+    typeof seed === 'number' &&
+    Number.isFinite(seed) &&
+    TERRAIN_THEMES[terrain].extras.includes(kind as PropKind)
+  );
+}
+
+/** How far the extra keeps from a place, so it never hides what grows there. */
+export const EXTRA_CLEARANCE = 110;
 
 /**
- * Nothing built yet: an empty signpost on a bare patch.
- *
- * Deliberately small and narrow. Anything wide here reads as a fence across the
- * path — and with most of the map unbuilt at the start, whatever this is gets
- * repeated forty-odd times, so it has to be quiet.
+ * Where a region's extra piece stands: inside the region, clear of its places.
+ * The same roll always lands in the same spot.
  */
-function plot(): string {
-  return (
-    `<ellipse cx="32" cy="54" rx="15" ry="4.5" fill="#2c2440" opacity="0.14"/>` +
-    `<rect x="29.5" y="26" width="5" height="28" rx="2.5" fill="${TIMBER_DARK}"/>` +
-    `<rect x="19" y="22" width="26" height="15" rx="3" fill="${shade(TIMBER, 0.45)}" ` +
-    `stroke="${TIMBER_DARK}" stroke-width="2"/>`
-  );
-}
-
-/** Walls up, roof not on: the shape of the finished thing is already visible. */
-function walls(colour: string): string {
-  return (
-    `<ellipse cx="32" cy="54" rx="24" ry="6" fill="#2c2440" opacity="0.14"/>` +
-    `<rect x="14" y="30" width="36" height="24" rx="3" fill="${shade(colour, 0.74)}"/>` +
-    `<rect x="14" y="30" width="12" height="24" fill="${shade(colour, 0.55)}" opacity="0.55"/>` +
-    // Scaffolding, so it reads as half-done rather than as a low building.
-    `<rect x="10" y="24" width="4" height="30" rx="2" fill="${TIMBER}"/>` +
-    `<rect x="50" y="24" width="4" height="30" rx="2" fill="${TIMBER}"/>` +
-    `<rect x="10" y="27" width="44" height="3.5" rx="1.75" fill="${TIMBER_DARK}"/>`
-  );
-}
-
-/** The roof and the flag that only a crown pays for. */
-function roof(colour: string, flag: string): string {
-  return (
-    `<path d="M 8 30 L 32 12 L 56 30 z" fill="${colour}"/>` +
-    `<path d="M 8 30 L 32 12 L 32 30 z" fill="${shade(colour, 0.28)}"/>` +
-    `<rect x="31" y="0" width="3" height="14" rx="1.5" fill="${TIMBER_DARK}"/>` +
-    `<path d="M 34 1 L 48 5 L 34 9 z" fill="${flag}"/>`
-  );
-}
-
-/**
- * The build for one place. Returns the inner SVG of a 64×60 box, so the caller
- * decides the size and the viewBox.
- */
-export function buildSvg(
-  terrain: string,
-  stage: BuildStage,
-  colour: string,
-): string {
-  if (stage === 'plot') return plot();
-
-  switch (terrain) {
-    case 'water': {
-      // A jetty, then a little boat moored at the end of it.
-      const deck =
-        `<ellipse cx="32" cy="54" rx="24" ry="6" fill="#2c2440" opacity="0.12"/>` +
-        `<rect x="8" y="38" width="48" height="7" rx="2" fill="${TIMBER}"/>` +
-        `<rect x="8" y="38" width="48" height="3" rx="1.5" fill="${shade(TIMBER, 0.3)}"/>` +
-        `<rect x="13" y="45" width="4" height="10" rx="2" fill="${TIMBER_DARK}"/>` +
-        `<rect x="47" y="45" width="4" height="10" rx="2" fill="${TIMBER_DARK}"/>`;
-      if (stage === 'started') return deck;
-      return (
-        deck +
-        `<path d="M 16 38 L 50 38 L 44 27 L 22 27 z" fill="${shade(colour, 0.2)}"/>` +
-        `<path d="M 16 38 L 33 38 L 33 27 L 22 27 z" fill="${shade(colour, 0.45)}"/>` +
-        `<rect x="31" y="4" width="3" height="24" rx="1.5" fill="${TIMBER_DARK}"/>` +
-        `<path d="M 34 5 L 48 15 L 34 22 z" fill="#fff6da"/>`
-      );
+export function placeExtra(
+  region: MapRegion,
+  spots: readonly MapSpot[],
+  seed: number,
+): { x: number; y: number } {
+  let best = { x: region.cx, y: region.cy + region.ry * 0.7 };
+  let bestGap = -1;
+  for (let i = 0; i < 40; i++) {
+    const angle = noise(`${seed}-a-${i}`) * Math.PI * 2;
+    const reach = 0.3 + noise(`${seed}-r-${i}`) * 0.5;
+    const x = Math.round(region.cx + Math.cos(angle) * region.rx * reach);
+    const y = Math.round(region.cy + Math.sin(angle) * region.ry * reach);
+    const gap = Math.min(
+      Infinity,
+      ...spots.map((spot) => Math.hypot(spot.x - x, spot.y - y)),
+    );
+    if (gap >= EXTRA_CLEARANCE) return { x, y };
+    // A crowded region may have nowhere fully clear; take the roomiest.
+    if (gap > bestGap) {
+      best = { x, y };
+      bestGap = gap;
     }
-
-    case 'caves': {
-      // A propped-open cave mouth, then a lantern hung over it.
-      const props =
-        `<ellipse cx="32" cy="54" rx="24" ry="6" fill="#2c2440" opacity="0.14"/>` +
-        `<path d="M 10 54 q 0 -32 22 -32 q 22 0 22 32 z" fill="${shade(colour, 0.4)}"/>` +
-        `<path d="M 19 54 q 0 -22 13 -22 q 13 0 13 22 z" fill="${shade(colour, -0.75)}"/>` +
-        `<rect x="15" y="30" width="5" height="24" rx="2" fill="${TIMBER}"/>` +
-        `<rect x="44" y="30" width="5" height="24" rx="2" fill="${TIMBER}"/>`;
-      if (stage === 'started') return props;
-      return (
-        props +
-        `<rect x="13" y="26" width="38" height="5" rx="2.5" fill="${TIMBER_DARK}"/>` +
-        `<rect x="30.5" y="10" width="3" height="16" rx="1.5" fill="${TIMBER_DARK}"/>` +
-        `<circle cx="32" cy="9" r="8" fill="#ffd45e"/>` +
-        `<circle cx="30" cy="7" r="4" fill="#fff6da"/>`
-      );
-    }
-
-    case 'forest': {
-      // A treehouse: the platform first, the hut and the ladder after.
-      const trunk =
-        `<ellipse cx="32" cy="54" rx="20" ry="6" fill="#2c2440" opacity="0.14"/>` +
-        `<rect x="27" y="26" width="10" height="28" rx="3" fill="${TIMBER_DARK}"/>` +
-        `<rect x="10" y="34" width="44" height="6" rx="3" fill="${TIMBER}"/>`;
-      if (stage === 'started') return trunk;
-      return (
-        trunk +
-        `<rect x="16" y="16" width="32" height="18" rx="3" fill="${shade(colour, 0.7)}"/>` +
-        `<rect x="16" y="16" width="11" height="18" fill="${shade(colour, 0.48)}" opacity="0.55"/>` +
-        `<path d="M 11 17 L 32 3 L 53 17 z" fill="${shade(colour, 0.12)}"/>` +
-        `<path d="M 11 17 L 32 3 L 32 17 z" fill="${shade(colour, 0.34)}"/>` +
-        `<rect x="20" y="40" width="3" height="14" rx="1.5" fill="${TIMBER}"/>` +
-        `<rect x="30" y="40" width="3" height="14" rx="1.5" fill="${TIMBER}"/>`
-      );
-    }
-
-    case 'hills': {
-      // A cairn, then a beacon on top of it.
-      const stones =
-        `<ellipse cx="32" cy="54" rx="22" ry="6" fill="#2c2440" opacity="0.14"/>` +
-        `<ellipse cx="32" cy="47" rx="21" ry="9" fill="${STONE}"/>` +
-        `<ellipse cx="32" cy="44" rx="21" ry="7" fill="${shade(STONE, 0.3)}"/>` +
-        `<ellipse cx="32" cy="36" rx="15" ry="8" fill="${shade(STONE, -0.08)}"/>` +
-        `<ellipse cx="32" cy="34" rx="15" ry="6" fill="${shade(STONE, 0.24)}"/>`;
-      if (stage === 'started') return stones;
-      return (
-        stones +
-        `<ellipse cx="32" cy="26" rx="10" ry="6" fill="${shade(STONE, -0.14)}"/>` +
-        `<ellipse cx="32" cy="24" rx="10" ry="5" fill="${shade(STONE, 0.2)}"/>` +
-        `<rect x="30.5" y="10" width="3" height="12" rx="1.5" fill="${TIMBER_DARK}"/>` +
-        `<path d="M 32 2 q 7 6 5 11 q -2 4 -5 4 q -3 0 -5 -4 q -2 -5 5 -11 z" fill="#ff9b3d"/>` +
-        `<path d="M 32 7 q 3.5 3.5 2.5 6.5 q -1 2 -2.5 2 q -1.5 0 -2.5 -2 q -1 -3 2.5 -6.5 z" fill="#ffe27a"/>`
-      );
-    }
-
-    default:
-      // Village, meadow and anything added later: a cottage.
-      return stage === 'started'
-        ? walls(colour)
-        : walls(colour) + roof(shade(colour, -0.05), '#ffd45e');
   }
-}
-
-/**
- * A build as a complete `data:` URI, so the map can render it as an ordinary
- * `<img>` rather than injecting markup — which Angular's sanitiser would strip
- * half of anyway.
- */
-export function buildDataUrl(
-  terrain: string,
-  stage: BuildStage,
-  colour: string,
-): string {
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${BUILD_WIDTH}" height="${BUILD_HEIGHT}" ` +
-    `viewBox="0 0 ${BUILD_WIDTH} ${BUILD_HEIGHT}">${buildSvg(terrain, stage, colour)}</svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  return best;
 }

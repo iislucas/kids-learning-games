@@ -31,6 +31,9 @@ const THINGS: Thing[] = [
   { emoji: '🚗', one: 'car', many: 'cars' },
   { emoji: '🍓', one: 'strawberry', many: 'strawberries' },
   { emoji: '🐸', one: 'frog', many: 'frogs' },
+  // Its place on the map is a beach.
+  { emoji: '🐚', one: 'shell', many: 'shells' },
+  { emoji: '🦀', one: 'crab', many: 'crabs' },
 ];
 
 /** The numbers each level counts up to, from 1. */
@@ -52,7 +55,7 @@ const COUNTING_CHALLENGES: Challenge[] = [1, 6, 11, 16].map((from): Challenge =>
     name: `Counting ${from} to ${to}`,
     // "11–15" is too long for a signpost; the top of the band says enough.
     short: `…${to}`,
-    emoji: '🌼',
+    emoji: '🐚',
     goal: 'Get all 5 right!',
     deck: (rng: Rng) => rng.shuffle(range(from, to)).map((n) => countingQuestion(rng, n)),
   };
@@ -69,7 +72,7 @@ const COUNTING_CHALLENGES: Challenge[] = [1, 6, 11, 16].map((from): Challenge =>
 export const countingPack: QuestionPack = {
   id: 'counting',
   title: 'Counting',
-  emoji: '🌼',
+  emoji: '🐚',
   colour: '#f29a2e',
   description: 'How many are there? Count and pick the number.',
   levels: [

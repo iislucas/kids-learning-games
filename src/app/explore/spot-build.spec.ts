@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { BuildStage, buildDataUrl, buildSvg, stageFor } from './spot-build';
-import { TERRAIN_IDS } from './map-art';
+import {
+  BUILD_WIDTHS,
+  EXTRA_CLEARANCE,
+  TERRAIN_THEMES,
+  buildFor,
+  isValidRoll,
+  placeExtra,
+  rollExtra,
+  stageFor,
+} from './spot-build';
+import { PROP_DESCRIPTIONS, PROP_KINDS, TERRAIN_IDS, propSvg } from './map-art';
 import { buildMapLayout } from './map-layout';
 
-const STAGES: BuildStage[] = ['plot', 'started', 'finished'];
+const layout = buildMapLayout();
 
 describe('stageFor', () => {
   it('grows with the badges won there', () => {
@@ -19,47 +28,93 @@ describe('stageFor', () => {
   });
 });
 
-describe('buildSvg', () => {
-  it('draws something different at every stage, for every terrain', () => {
-    for (const terrain of TERRAIN_IDS) {
-      const drawings = STAGES.map((stage) => buildSvg(terrain, stage, '#4f8ff7'));
-      expect(new Set(drawings).size, `${terrain} repeats a stage`).toBe(3);
-      for (const drawing of drawings) expect(drawing.length).toBeGreaterThan(50);
-    }
+describe('buildFor', () => {
+  it('leaves an unstarted place empty', () => {
+    for (const terrain of TERRAIN_IDS) expect(buildFor(terrain, 'plot')).toBeNull();
   });
 
-  /**
-   * The point of the whole thing: a place further along has to look like more
-   * has been done to it, not merely different.
-   */
-  it('adds to what is already there rather than replacing it', () => {
+  /** The point of the whole thing: the crown has to look like more than the star. */
+  it('grows the same landmark bigger from star to crown', () => {
     for (const terrain of TERRAIN_IDS) {
-      const started = buildSvg(terrain, 'started', '#4f8ff7');
-      const finished = buildSvg(terrain, 'finished', '#4f8ff7');
-      expect(finished.startsWith(started), `${terrain} restarts when finished`).toBe(
-        true,
-      );
-      expect(finished.length).toBeGreaterThan(started.length);
+      const started = buildFor(terrain, 'started')!;
+      const finished = buildFor(terrain, 'finished')!;
+      expect(started.kind).toBe(finished.kind);
+      expect(finished.width).toBeGreaterThan(started.width * 1.5);
     }
+    expect(BUILD_WIDTHS.finished).toBeGreaterThan(BUILD_WIDTHS.started);
   });
 
-  it('fits the box it says it does', () => {
+  it('gives every region a landmark of its own', () => {
+    const landmarks = layout.regions.map((r) => TERRAIN_THEMES[r.terrain].landmark);
+    const terrains = layout.regions.map((r) => r.terrain);
+    expect(new Set(landmarks).size).toBe(new Set(terrains).size);
+  });
+});
+
+describe('terrain themes', () => {
+  it('names only pictures the map knows how to make and draw', () => {
     for (const terrain of TERRAIN_IDS) {
-      for (const stage of STAGES) {
-        const url = buildDataUrl(terrain, stage, '#4f8ff7');
-        expect(url.startsWith('data:image/svg+xml')).toBe(true);
-        expect(decodeURIComponent(url)).toContain('viewBox="0 0 64 60"');
+      const theme = TERRAIN_THEMES[terrain];
+      expect(theme.extras.length).toBeGreaterThan(1);
+      for (const kind of [theme.landmark, ...theme.extras]) {
+        expect(PROP_KINDS).toContain(kind);
+        expect(PROP_DESCRIPTIONS[kind].length).toBeGreaterThan(10);
+        expect(propSvg(kind)).toContain('<svg');
       }
     }
   });
 
-  it('has a drawing for every terrain the map actually uses', () => {
-    for (const region of buildMapLayout().regions) {
-      for (const stage of STAGES) {
-        expect(buildSvg(region.terrain, stage, region.colour).length).toBeGreaterThan(
-          50,
-        );
+  it('does not reuse a landmark as an extra anywhere', () => {
+    const landmarks = new Set(TERRAIN_IDS.map((t) => TERRAIN_THEMES[t].landmark));
+    for (const terrain of TERRAIN_IDS) {
+      for (const extra of TERRAIN_THEMES[terrain].extras) {
+        expect(landmarks.has(extra), extra).toBe(false);
       }
     }
+  });
+});
+
+describe('extras', () => {
+  it('rolls every extra a terrain offers, given the chance', () => {
+    for (const terrain of TERRAIN_IDS) {
+      const seen = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const values = [i / 20, 0.5];
+        seen.add(rollExtra(terrain, () => values.shift() ?? 0).kind);
+      }
+      expect([...seen].sort()).toEqual([...TERRAIN_THEMES[terrain].extras].sort());
+    }
+  });
+
+  it('accepts its own rolls and rejects anything else', () => {
+    const roll = rollExtra('forest', () => 0.3);
+    expect(isValidRoll('forest', roll)).toBe(true);
+    expect(isValidRoll('beach', roll)).toBe(false);
+    expect(isValidRoll('forest', undefined)).toBe(false);
+    expect(isValidRoll('forest', { kind: 'oak', seed: 1 })).toBe(false);
+    expect(isValidRoll('forest', { kind: roll.kind, seed: 'x' })).toBe(false);
+  });
+
+  it('stands inside its region and clear of the places to play', () => {
+    for (const region of layout.regions) {
+      const spots = layout.spots.filter((spot) => spot.regionId === region.id);
+      for (const seed of [0, 1, 42, 999, 123456]) {
+        const at = placeExtra(region, spots, seed);
+        expect(Math.hypot((at.x - region.cx) / region.rx, (at.y - region.cy) / region.ry))
+          .toBeLessThan(1);
+        for (const spot of spots) {
+          expect(
+            Math.hypot(spot.x - at.x, spot.y - at.y),
+            `${region.id} seed ${seed}`,
+          ).toBeGreaterThanOrEqual(EXTRA_CLEARANCE * 0.7);
+        }
+      }
+    }
+  });
+
+  it('lands in the same place for the same roll', () => {
+    const region = layout.regions[0];
+    const spots = layout.spots.filter((spot) => spot.regionId === region.id);
+    expect(placeExtra(region, spots, 7)).toEqual(placeExtra(region, spots, 7));
   });
 });
