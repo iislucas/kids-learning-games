@@ -8,7 +8,6 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { withParam } from '../../routing/routing.utils';
@@ -22,7 +21,8 @@ import { MediaService } from '../../media/media.service';
 import { AnimationName } from '../../media/media.types';
 import { findPack } from '../../quiz/pack-registry';
 import { ChallengeRef, findChallenge, isChallengeAvailable } from '../../quiz/challenges';
-import { QuestionPack } from '../../quiz/question.types';
+import { Answer, QuestionPack } from '../../quiz/question.types';
+import { kindOf } from '../../quiz/game-kinds';
 import { PackOptionsService } from '../../quiz/pack-options.service';
 import {
   buildMapLayout,
@@ -35,6 +35,8 @@ import { SpriteCharacter } from '../../components/sprite-character/sprite-charac
 import { ConfettiBurst } from '../../components/confetti-burst/confetti-burst';
 import { PrizeBackdrop } from '../../components/prize-backdrop/prize-backdrop';
 import { GameSetup } from '../../components/game-setup/game-setup';
+import { QuestionPrompt } from '../../components/question-prompt/question-prompt';
+import { ChoiceAnswers } from '../../components/choice-answers/choice-answers';
 
 /**
  * How long the result stays on screen before moving on. A wrong answer lingers
@@ -45,7 +47,14 @@ const REVEAL_MS = { correct: 1500, wrong: 3200 };
 @Component({
   selector: 'app-play-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SpriteCharacter, ConfettiBurst, PrizeBackdrop, GameSetup, NgTemplateOutlet],
+  imports: [
+    SpriteCharacter,
+    ConfettiBurst,
+    PrizeBackdrop,
+    GameSetup,
+    QuestionPrompt,
+    ChoiceAnswers,
+  ],
   templateUrl: './play.page.html',
   styleUrl: './play.page.scss',
 })
@@ -61,24 +70,16 @@ export class PlayPage {
   readonly character = this.media.character;
   readonly characterName = computed(() => this.character().name);
 
-  /**
-   * The drawing for this question, when the media pack has one. Spelling asks
-   * "how do you write this?", so the picture *is* the question; without one the
-   * emoji stands in.
-   */
-  readonly questionPicture = computed(() => {
-    const id = this.snapshot()?.question.picture;
-    return id ? (this.media.picture(id) ?? null) : null;
+  /** Which of its three messages the speech bubble is showing. */
+  readonly bubbleSays = computed<'question' | 'right' | 'wrong'>(() => {
+    if (this.snapshot()?.phase !== 'revealing') return 'question';
+    return this.lastWasCorrect() ? 'right' : 'wrong';
   });
 
-  /** The things to count, one entry each, numbered from 1. */
-  readonly countItems = computed(() => {
-    const count = this.snapshot()?.question.count;
-    if (!count) return [];
-    return Array.from({ length: count.amount }, (_, i) => ({
-      number: i + 1,
-      emoji: count.emoji,
-    }));
+  /** What to say after a wrong answer, which depends on how it is answered. */
+  readonly retryHint = computed(() => {
+    const question = this.snapshot()?.question;
+    return question ? kindOf(question).retryHint : '';
   });
 
   private readonly routeSignals = this.router.signals[Views.Play];
@@ -330,12 +331,12 @@ export class PlayPage {
     this.wasRetry.set(false);
   }
 
-  answer(index: number): void {
+  answer(given: Answer): void {
     const session = this.session();
     const pack = this.pack();
     if (!session || !pack) return;
 
-    const result = session.answer(index);
+    const result = session.answer(given);
     // Null means the tap was ignored (already answered, or round over).
     if (!result) return;
     this.revision.update((n) => n + 1);
@@ -442,15 +443,6 @@ export class PlayPage {
     event.preventDefault();
     this.audio.play('tap');
     this.router.navigateTo(href, { clearUrlParams: true });
-  }
-
-  /** Visual state for one answer button once the answer is revealed. */
-  choiceState(index: number): 'idle' | 'right' | 'wrong' | 'dimmed' {
-    const snapshot = this.snapshot();
-    if (!snapshot || snapshot.phase === 'asking') return 'idle';
-    if (index === snapshot.question.correctIndex) return 'right';
-    if (index === snapshot.chosenIndex) return 'wrong';
-    return 'dimmed';
   }
 
   private clearTimer(): void {

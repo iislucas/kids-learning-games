@@ -43,15 +43,11 @@ import {
 import { cutOutSubject, rasterise } from '../../media/raster';
 import { PICTURE_SUBJECTS } from '../../quiz/pictures';
 import { buildMapLayout } from '../../explore/map-layout';
+import { PROPS, PROP_KINDS, PropKind } from '../../explore/props';
+import { TERRAIN_IDS, TerrainId, terrainDef } from '../../explore/terrains';
 import {
-  PROP_DESCRIPTIONS,
-  PROP_KINDS,
   PROP_SIZE,
-  PropKind,
-  TERRAIN_DESCRIPTIONS,
-  TERRAIN_IDS,
   TILE_SIZE,
-  TerrainId,
   mapSketchSvg,
   propSvg,
   svgDataUrl,
@@ -215,7 +211,7 @@ export class MediaStudioPage {
   readonly tileRows = computed(() =>
     this.terrains.map((terrain) => ({
       id: terrain,
-      description: TERRAIN_DESCRIPTIONS[terrain],
+      description: terrainDef(terrain).description,
       generated: !!this.media.mapTile(terrain),
       src: this.media.mapTile(terrain) ?? svgDataUrl(terrainTileSvg(terrain)),
     })),
@@ -224,7 +220,7 @@ export class MediaStudioPage {
   readonly propRows = computed(() =>
     this.propKinds.map((kind) => ({
       id: kind,
-      description: PROP_DESCRIPTIONS[kind],
+      description: PROPS[kind].description,
       generated: !!this.media.mapProp(kind),
       src: this.media.mapProp(kind) ?? svgDataUrl(propSvg(kind)),
     })),
@@ -424,7 +420,7 @@ export class MediaStudioPage {
   async generateTile(terrain: string): Promise<void> {
     await this.run(`Making the ${terrain} ground…`, async () => {
       const image = await this.gemini.generateImage(
-        buildTilePrompt(TERRAIN_DESCRIPTIONS[terrain as TerrainId], this.mapStyle()),
+        buildTilePrompt(terrainDef(terrain as TerrainId).description, this.mapStyle()),
         // Square, or the tile arrives stretched and repeats as stretched.
         { aspectRatio: '1:1' },
       );
@@ -445,7 +441,7 @@ export class MediaStudioPage {
   async generateProp(kind: string): Promise<void> {
     await this.run(`Drawing the ${kind}…`, async () => {
       const image = await this.gemini.generateImage(
-        buildPropPrompt(PROP_DESCRIPTIONS[kind as PropKind], this.mapStyle()),
+        buildPropPrompt(PROPS[kind as PropKind].description, this.mapStyle()),
         { aspectRatio: '1:1' },
       );
       // Knocking the flat background out to transparency is the same trick the

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { defaultMediaPack } from './default-pack';
 import { ANIMATION_NAMES, SOUND_IDS } from './media.types';
 import { DIRECTIONS } from '../explore/explorer';
-import { PROP_KINDS, TERRAIN_IDS } from '../explore/map-art';
+import { existsSync } from 'node:fs';
+import { PROP_KINDS, propFile } from '../explore/props';
+import { TERRAIN_IDS, tileFile } from '../explore/terrains';
 import { buildMapLayout } from '../explore/map-layout';
 import { CHARACTER_VOICES, VOICED_EVENTS, voiceClipPath } from './voice-lines';
 
@@ -79,6 +81,17 @@ describe('the default media pack', () => {
     for (const kind of PROP_KINDS) {
       expect(pack.map?.props?.[kind]?.src, kind).toBeTruthy();
     }
+  });
+
+  /**
+   * The paths are derived from the registries, so a terrain or prop added
+   * without generating and committing its picture would otherwise only show up
+   * as a broken image on the map.
+   */
+  it('has every map picture committed under public/', () => {
+    const files = [...TERRAIN_IDS.map(tileFile), ...PROP_KINDS.map(propFile)];
+    const missing = files.filter((file) => !existsSync(`public/${file}`));
+    expect(missing).toEqual([]);
   });
 
   it('keys its question pictures the way questions ask for them', () => {

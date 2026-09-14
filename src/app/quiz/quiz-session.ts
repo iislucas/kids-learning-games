@@ -1,5 +1,7 @@
 import { Rng } from '../core/rng';
+import { isCorrect, questionKey } from './game-kinds';
 import {
+  Answer,
   PackSelection,
   Question,
   QuestionPack,
@@ -12,7 +14,7 @@ export type QuizPhase = 'asking' | 'revealing' | 'finished';
 
 export interface AnswerRecord {
   question: Question;
-  chosenIndex: number;
+  answer: Answer;
   wasCorrect: boolean;
 }
 
@@ -33,7 +35,8 @@ export interface QuizSnapshot {
   totalQuestions: number;
   streak: number;
   correctCount: number;
-  chosenIndex: number | null;
+  /** The answer being revealed, or null while asking. */
+  answer: Answer | null;
   /** Revealing a wrong answer — advancing returns to the same question. */
   awaitingRetry: boolean;
   /** How many times the current question has been answered. */
@@ -46,7 +49,8 @@ const MAX_REDRAWS = 12;
 /**
  * The rules of a round, with no Angular and no side effects, so the awkward
  * parts — streak accounting, when an answer is allowed, when the round ends —
- * are testable directly.
+ * are testable directly. It works on any kind of question: marking an answer
+ * and telling questions apart are left to `game-kinds.ts`.
  *
  * A round is a fixed number of questions rather than open-ended: a clear finish
  * line gives a natural stopping point and something to celebrate, which is
@@ -62,7 +66,7 @@ export class QuizSession {
   private questionIndex = 0;
   private current: Question;
   private phase: QuizPhase = 'asking';
-  private chosenIndex: number | null = null;
+  private given: Answer | null = null;
   private awaitingRetry = false;
   private attempts = 0;
   /** Identity of the previous question, to avoid drawing it twice running. */
@@ -109,14 +113,14 @@ export class QuizSession {
     if (this.deck) {
       // Already shuffled and already distinct, so it is simply dealt in order.
       const question = this.deck[Math.min(this.questionIndex, this.deck.length - 1)];
-      this.lastKey = keyOf(question);
+      this.lastKey = questionKey(question);
       return question;
     }
     let question = this.pack.generate(this.level, this.rng, this.selection);
-    for (let i = 0; i < MAX_REDRAWS && keyOf(question) === this.lastKey; i++) {
+    for (let i = 0; i < MAX_REDRAWS && questionKey(question) === this.lastKey; i++) {
       question = this.pack.generate(this.level, this.rng, this.selection);
     }
-    this.lastKey = keyOf(question);
+    this.lastKey = questionKey(question);
     return question;
   }
 
@@ -128,7 +132,7 @@ export class QuizSession {
       totalQuestions: this.totalQuestions,
       streak: this.streak,
       correctCount: this.correctCount,
-      chosenIndex: this.chosenIndex,
+      answer: this.given,
       awaitingRetry: this.awaitingRetry,
       attempts: this.attempts,
     };
@@ -139,10 +143,10 @@ export class QuizSession {
    * while the result is showing, or after the round is over. Without this
    * guard, an excited child mashing buttons inflates the streak.
    */
-  answer(choiceIndex: number): AnswerResult | null {
+  answer(answer: Answer): AnswerResult | null {
     if (this.phase !== 'asking') return null;
 
-    const wasCorrect = choiceIndex === this.current.correctIndex;
+    const wasCorrect = isCorrect(this.current, answer);
     const isFirstAttempt = this.attempts === 0;
     this.attempts++;
 
@@ -153,12 +157,12 @@ export class QuizSession {
       if (wasCorrect) this.correctCount++;
       this.answers.push({
         question: this.current,
-        chosenIndex: choiceIndex,
+        answer,
         wasCorrect,
       });
     }
 
-    this.chosenIndex = choiceIndex;
+    this.given = answer;
     this.phase = 'revealing';
     this.awaitingRetry = !wasCorrect;
 
@@ -174,13 +178,13 @@ export class QuizSession {
 
     if (this.awaitingRetry) {
       this.awaitingRetry = false;
-      this.chosenIndex = null;
+      this.given = null;
       this.phase = 'asking';
       return;
     }
 
     this.questionIndex++;
-    this.chosenIndex = null;
+    this.given = null;
     this.attempts = 0;
 
     if (this.questionIndex >= this.totalQuestions) {
@@ -220,18 +224,4 @@ export class QuizSession {
       this.isFinished && this.correctCount >= Math.ceil(this.totalQuestions * 0.9)
     );
   }
-}
-
-/**
- * Identity of a question for repeat detection.
- *
- * The correct answer has to be part of this. Some questions are asked entirely
- * through their options — the English sight-word round shows a fixed prompt
- * ("👀", "Which one is spelled correctly?") and varies only the choices, so
- * keying on prompt and instruction alone makes every one of them look like the
- * same question.
- */
-function keyOf(question: Question): string {
-  const answer = question.choices[question.correctIndex] ?? '';
-  return `${question.instruction ?? ''}|${question.prompt}|${answer}`;
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CHALLENGES, findChallenge } from '../quiz/challenges';
 import { QUESTION_PACKS } from '../quiz/pack-registry';
+import { PROP_KINDS } from './props';
+import { TERRAIN_IDS } from './terrains';
 import {
-  PROP_KINDS,
-  TERRAIN_IDS,
   TILE_SIZE,
   mapSketchSvg,
   pathThrough,

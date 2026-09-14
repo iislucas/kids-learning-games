@@ -89,8 +89,34 @@ infinitely; the others sample from curated lists.
 To add a subject: write a pack in `src/app/quiz/packs/`, then add it to
 [`pack-registry.ts`](src/app/quiz/pack-registry.ts). It appears on the home
 screen automatically, and the shared spec starts exercising it — 200 generated
-questions per level, checking for duplicate options, empty choices and
-out-of-range answers.
+questions per level, each checked by its kind's own rules. To give it a place
+on the map as well, follow the
+[`add-game-area`](.claude/skills/add-game-area/SKILL.md) skill.
+
+### Kinds of question
+
+Every question has a `kind`. Today there is one, `choice`: pick the right one of
+up to four buttons. The rest of the game is written so that another kind (typing
+a number, putting pictures in order) can be added without touching rounds,
+stars, retries, challenges or the map:
+
+- **What a question shows** is shared by every kind: the prompt, a picture, or
+  things to count, drawn by
+  [`question-prompt`](src/app/components/question-prompt/question-prompt.ts).
+- **How it is answered** belongs to the kind. Its rules live in
+  [`game-kinds.ts`](src/app/quiz/game-kinds.ts): marking an answer, telling two
+  questions apart for "never twice running", what makes one malformed (which
+  the pack specs use), and what to say before a retry. Its buttons are a
+  component of their own, such as
+  [`choice-answers`](src/app/components/choice-answers/choice-answers.ts), which
+  the play screen picks with a `@switch` on the kind.
+
+`QuizSession` only ever calls `isCorrect` and `questionKey`, so it has no idea
+which kind it is running.
+
+Challenges are built the same way in every pack, with `completeSet`: the items
+in the set and how to ask one. It deals them in a fresh order and writes the
+"Get all N right!" goal from the count, so the two cannot disagree.
 
 ### Choosing what to practise
 
@@ -243,16 +269,27 @@ after a challenge, and otherwise to wherever she last stopped. That position is
 kept across visits (`klg.mapAt`), because the `at` url parameter only knows
 about spots and only survives a trip that carried it.
 
-Three files, all pure and Angular-free:
+The files, all pure and Angular-free:
 
 - [`map-layout.ts`](src/app/explore/map-layout.ts) — the regions, and a
   serpentine path that places each challenge's spot inside its region. Adding a
   challenge places itself.
+- [`terrains.ts`](src/app/explore/terrains.ts) — everything about how each kind
+  of land looks, one entry per terrain: the ground tile (its prompt and drawn
+  fallback), the scenery, the landmark that grows at each place, and the
+  extras.
+- [`props.ts`](src/app/explore/props.ts) — every picture that stands on the
+  map, with its prompt and the drawing it falls back on.
+- [`spot-build.ts`](src/app/explore/spot-build.ts) — when a landmark grows and
+  how big, and rolling and placing the random extras.
 - [`explorer.ts`](src/app/explore/explorer.ts) — `directionFor` (eight 45°
   wedges, screen coordinates so north is negative y) and `stepToward`, which
   never overshoots on a long frame.
-- [`map-art.ts`](src/app/explore/map-art.ts) — the tiles, the props and the
-  labelled sketch.
+- [`map-art.ts`](src/app/explore/map-art.ts) — draws the fallback tiles and
+  props, scatters the scenery, and draws the labelled sketch.
+
+Adding a whole new area is a checklist across these; the
+[`add-game-area`](.claude/skills/add-game-area/SKILL.md) skill walks through it.
 
 The walk is driven by `requestAnimationFrame`, which the global
 `prefers-reduced-motion` rule in `styles.scss` cannot reach, so the map checks
@@ -476,6 +513,14 @@ median-of-the-border analysis the sprite sheet uses
 
 Everything is rescaled before storing: a full-size PNG data URI trips the
 `localStorage` quota that `saveOverride` guards.
+
+The rows come straight from `terrains.ts` and `props.ts`, so a new terrain or
+prop appears here ready to generate. To commit what you made, **Export pack**
+and write the pieces into `public/media/map/`:
+
+```bash
+pnpm run extract:map-art path/to/media-pack.json --only beach,sandcastle
+```
 
 ### Question pictures (`/media`, Pictures tab)
 

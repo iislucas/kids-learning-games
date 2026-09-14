@@ -5,6 +5,7 @@ import {
   PackSelection,
   Question,
   QuestionPack,
+  completeSet,
   makeChoice,
   selected,
 } from '../question.types';
@@ -66,19 +67,16 @@ const TOPICS_OPTION: PackOption = {
 };
 
 /** One challenge per topic: every fact in it, asked once. */
-const SCIENCE_CHALLENGES: Challenge[] = TOPICS_OPTION.choices.map(
-  (choice): Challenge => {
-    const facts = FACTS.filter((fact) => fact.topic === choice.value);
-    return {
-      id: `science.topic.${choice.value}`,
-      name: `Everything about ${choice.label.toLowerCase()}`,
-      short: choice.emoji ?? choice.label,
-      emoji: choice.emoji ?? '🔬',
-      goal: `Get all ${facts.length} right!`,
-      requires: { optionId: TOPICS_OPTION.id, value: choice.value },
-      deck: (rng: Rng) => rng.shuffle(facts).map((fact) => factQuestion(rng, fact)),
-    };
-  },
+const SCIENCE_CHALLENGES: Challenge[] = TOPICS_OPTION.choices.map((choice) =>
+  completeSet({
+    id: `science.topic.${choice.value}`,
+    name: `Everything about ${choice.label.toLowerCase()}`,
+    short: choice.emoji ?? choice.label,
+    emoji: choice.emoji ?? '🔬',
+    requires: { optionId: TOPICS_OPTION.id, value: choice.value },
+    items: FACTS.filter((fact) => fact.topic === choice.value),
+    ask: factQuestion,
+  }),
 );
 
 /**

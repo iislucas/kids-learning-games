@@ -30,6 +30,12 @@ Do not prefix commands with `PATH=...`; pnpm handles the Node version itself.
 - Keep game rules in plain classes (`quiz-session.ts`) and pure functions
   (`sprite-grid.ts`, `prizes.ts`) rather than in components — that is where the
   tests live.
+- **Questions have a `kind`.** Marking, repeat keys and validation go through
+  `game-kinds.ts`, never by reaching into `choices`/`correctIndex` from the
+  round or a spec. Build challenges with `completeSet`.
+- **An area's look lives in `explore/terrains.ts`** (ground, scenery,
+  landmark, extras) and its pictures in `explore/props.ts`. To add an area,
+  follow the `add-game-area` skill in `.claude/skills/`.
 
 ## Pack options
 

@@ -5,6 +5,7 @@ import {
   PackSelection,
   Question,
   QuestionPack,
+  completeSet,
   makeChoice,
   selected,
 } from '../question.types';
@@ -82,38 +83,38 @@ const WORD_SETS_OPTION: PackOption = {
 const SIGHT_WORD_DECKS = [SIGHT_WORDS.slice(0, 8), SIGHT_WORDS.slice(8)];
 
 const ENGLISH_CHALLENGES: Challenge[] = [
-  ...WORD_SETS_OPTION.choices.map((choice): Challenge => {
+  ...WORD_SETS_OPTION.choices.map((choice) => {
     const band = Number(choice.value);
     const words = WORDS.filter((entry) => entry.band === band);
-    return {
+    return completeSet({
       id: `english.words.${band}`,
       name: `Spell every ${choice.label.toLowerCase().replace(/ words$/, '')} word`,
       short: choice.emoji ?? choice.label,
       emoji: choice.emoji ?? '📚',
       goal: `Spell all ${words.length} of them!`,
       requires: { optionId: WORD_SETS_OPTION.id, value: choice.value },
-      deck: (rng: Rng) =>
-        rng.shuffle(words).map((entry) => spellWordFor(rng, entry)),
-    };
+      items: words,
+      ask: spellWordFor,
+    });
   }),
-  ...SIGHT_WORD_DECKS.map((words, index): Challenge => ({
-    id: `english.sight.${index + 1}`,
-    name: `Tricky words ${index + 1}`,
-    short: `👀${index + 1}`,
-    emoji: '👀',
-    goal: `Get all ${words.length} right!`,
-    deck: (rng: Rng) =>
-      rng.shuffle(words).map((word) => sightWordFor(rng, word)),
-  })),
-  {
+  ...SIGHT_WORD_DECKS.map((words, index) =>
+    completeSet({
+      id: `english.sight.${index + 1}`,
+      name: `Tricky words ${index + 1}`,
+      short: `👀${index + 1}`,
+      emoji: '👀',
+      items: words,
+      ask: sightWordFor,
+    }),
+  ),
+  completeSet({
     id: 'english.rhyme',
     name: 'Every rhyming family',
     short: '🎵',
     emoji: '🎵',
-    goal: `Get all ${RHYME_GROUPS.length} right!`,
-    deck: (rng: Rng) =>
-      rng.shuffle(RHYME_GROUPS).map((group) => rhymeFor(rng, group)),
-  },
+    items: RHYME_GROUPS,
+    ask: rhymeFor,
+  }),
 ];
 
 export const englishPack: QuestionPack = {

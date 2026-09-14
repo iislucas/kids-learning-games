@@ -1,4 +1,5 @@
 import { ALL_CHALLENGES, ChallengeRef } from '../quiz/challenges';
+import type { TerrainId } from './terrains';
 
 /**
  * Where everything sits in the landscape.
@@ -31,7 +32,7 @@ export interface MapRegion {
   rx: number;
   ry: number;
   /** Terrain the art should draw here. */
-  terrain: 'meadow' | 'water' | 'forest' | 'village' | 'hills' | 'caves' | 'beach';
+  terrain: TerrainId;
   /**
    * Which levels of an ordinary round belong here, for a pack split across
    * several regions. Maths is: adding happens at the ponds and times tables in

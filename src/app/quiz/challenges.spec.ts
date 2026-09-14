@@ -8,6 +8,7 @@ import {
 } from './challenges';
 import { QUESTION_PACKS } from './pack-registry';
 import { defaultSelection } from './question.types';
+import { questionKey, questionProblems } from './game-kinds';
 
 /**
  * The contract every challenge has to meet. Like the pack spec, this covers any
@@ -47,21 +48,12 @@ describe('challenges', () => {
           expect(deck.length).toBeLessThanOrEqual(12);
 
           for (const question of deck) {
-            expect(question.prompt.length).toBeGreaterThan(0);
-            expect(question.choices.length).toBeGreaterThanOrEqual(2);
-            expect(question.correctIndex).toBeGreaterThanOrEqual(0);
-            expect(question.correctIndex).toBeLessThan(question.choices.length);
-            expect(new Set(question.choices).size).toBe(question.choices.length);
-            for (const choice of question.choices) {
-              expect(choice.trim().length).toBeGreaterThan(0);
-            }
+            expect(questionProblems(question)).toEqual([]);
           }
 
           // Every question in the set exactly once — that is what makes "all of
           // them right" mean the whole thing is known.
-          const keys = deck.map(
-            (q) => `${q.instruction ?? ''}|${q.prompt}|${q.choices[q.correctIndex]}`,
-          );
+          const keys = deck.map(questionKey);
           expect(new Set(keys).size).toBe(deck.length);
         }
       });

@@ -5,6 +5,7 @@ import {
   PackSelection,
   Question,
   QuestionPack,
+  completeSet,
   makeChoice,
   numericDistractors,
   selected,
@@ -53,40 +54,41 @@ const FACT_RANGE = Array.from({ length: FACTS_PER_FAMILY }, (_, i) => i + 1);
  * and a challenge is not a level.
  */
 const MATHS_CHALLENGES: Challenge[] = [
-  ...TABLES_OPTION.choices.map((choice): Challenge => {
+  ...TABLES_OPTION.choices.map((choice) => {
     const table = Number(choice.value);
-    return {
+    return completeSet({
       id: `maths.times.${table}`,
       name: `The ${table} times table`,
       short: `${table}×`,
       emoji: '✖️',
-      goal: `Get all ${FACTS_PER_FAMILY} right!`,
       requires: { optionId: TABLES_OPTION.id, value: choice.value },
-      deck: (rng: Rng) =>
-        rng.shuffle(FACT_RANGE).map((b) => multiplicationFact(rng, table, b)),
-    };
+      items: FACT_RANGE,
+      ask: (rng, b) => multiplicationFact(rng, table, b),
+    });
   }),
-  ...FACT_RANGE.map((n): Challenge => ({
-    id: `maths.add.${n}`,
-    name: `Adding ${n}`,
-    short: `+${n}`,
-    emoji: '➕',
-    goal: `Get all ${FACTS_PER_FAMILY} right!`,
-    deck: (rng: Rng) =>
-      rng.shuffle(FACT_RANGE).map((b) => additionFact(rng, n, b)),
-  })),
+  ...FACT_RANGE.map((n) =>
+    completeSet({
+      id: `maths.add.${n}`,
+      name: `Adding ${n}`,
+      short: `+${n}`,
+      emoji: '➕',
+      items: FACT_RANGE,
+      ask: (rng, b) => additionFact(rng, n, b),
+    }),
+  ),
   // The exact inverse of the adding family: `n + b` becomes `(n + b) − n`, so
   // the answers are the same 1…10 and the pair can be practised against each
   // other. That is how taking away is taught at this age — as adding undone.
-  ...FACT_RANGE.map((n): Challenge => ({
-    id: `maths.sub.${n}`,
-    name: `Taking away ${n}`,
-    short: `−${n}`,
-    emoji: '➖',
-    goal: `Get all ${FACTS_PER_FAMILY} right!`,
-    deck: (rng: Rng) =>
-      rng.shuffle(FACT_RANGE).map((b) => subtractionFact(rng, n + b, n)),
-  })),
+  ...FACT_RANGE.map((n) =>
+    completeSet({
+      id: `maths.sub.${n}`,
+      name: `Taking away ${n}`,
+      short: `−${n}`,
+      emoji: '➖',
+      items: FACT_RANGE,
+      ask: (rng, b) => subtractionFact(rng, n + b, n),
+    }),
+  ),
 ];
 
 /**

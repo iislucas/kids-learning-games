@@ -1,7 +1,9 @@
 import { Rng } from '../core/rng';
 import { QUESTION_PACKS, findPack } from './pack-registry';
 import { QuizSession } from './quiz-session';
+import { choiceKind, isCorrect, questionKey, questionProblems } from './game-kinds';
 import {
+  ChoiceAnswer,
   PackSelection,
   Question,
   QuestionPack,
@@ -21,24 +23,30 @@ const stubPack: QuestionPack = {
   description: '',
   levels: [{ number: 1, name: 'One' }],
   generate: (): Question => ({
+    kind: 'choice',
     prompt: '1 + 1',
     choices: ['2', '3', '4', '5'],
     correctIndex: 0,
   }),
 };
 
+/** Tapping the answer button at `index`. */
+function pick(index: number): ChoiceAnswer {
+  return { kind: 'choice', index };
+}
+
 function answerAll(session: QuizSession, choice: number, times: number): void {
   for (let i = 0; i < times; i++) {
-    session.answer(choice);
+    session.answer(pick(choice));
     session.advance();
   }
 }
 
 /** Answers wrongly, clears the retry, then answers correctly. */
 function answerWrongThenRight(session: QuizSession): void {
-  session.answer(1);
+  session.answer(pick(1));
   session.advance(); // back to the same question
-  session.answer(0);
+  session.answer(pick(0));
   session.advance(); // on to the next
 }
 
@@ -54,29 +62,29 @@ describe('QuizSession', () => {
 
   it('builds a streak on consecutive correct answers', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
-    expect(session.answer(0)).toMatchObject({ wasCorrect: true, streak: 1 });
+    expect(session.answer(pick(0))).toMatchObject({ wasCorrect: true, streak: 1 });
     session.advance();
-    expect(session.answer(0)).toMatchObject({ wasCorrect: true, streak: 2 });
+    expect(session.answer(pick(0))).toMatchObject({ wasCorrect: true, streak: 2 });
     session.advance();
-    expect(session.answer(0)).toMatchObject({ wasCorrect: true, streak: 3 });
+    expect(session.answer(pick(0))).toMatchObject({ wasCorrect: true, streak: 3 });
   });
 
   it('resets the streak on a wrong answer', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
-    session.answer(0);
+    session.answer(pick(0));
     session.advance();
-    session.answer(0);
+    session.answer(pick(0));
     session.advance();
-    expect(session.answer(1)).toMatchObject({ wasCorrect: false, streak: 0 });
+    expect(session.answer(pick(1))).toMatchObject({ wasCorrect: false, streak: 0 });
     expect(session.snapshot().correctCount).toBe(2);
   });
 
   it('ignores extra taps while the answer is being revealed', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
-    expect(session.answer(0)).not.toBeNull();
+    expect(session.answer(pick(0))).not.toBeNull();
     // A child mashing the buttons must not rack up a streak of 5.
-    expect(session.answer(0)).toBeNull();
-    expect(session.answer(1)).toBeNull();
+    expect(session.answer(pick(0))).toBeNull();
+    expect(session.answer(pick(1))).toBeNull();
     expect(session.streak).toBe(1);
     expect(session.answers).toHaveLength(1);
   });
@@ -87,11 +95,11 @@ describe('QuizSession', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
     const asked = session.snapshot().question;
 
-    session.answer(1);
+    session.answer(pick(1));
     const revealing = session.snapshot();
     expect(revealing.phase).toBe('revealing');
     expect(revealing.awaitingRetry).toBe(true);
-    expect(revealing.chosenIndex).toBe(1);
+    expect(revealing.answer).toEqual(pick(1));
 
     session.advance();
     const retry = session.snapshot();
@@ -100,15 +108,15 @@ describe('QuizSession', () => {
     // Still question 1 — a wrong answer does not consume a question.
     expect(retry.questionNumber).toBe(1);
     // Buttons reset to neutral so she can choose again.
-    expect(retry.chosenIndex).toBeNull();
+    expect(retry.answer).toBeNull();
   });
 
   it('moves on once the retry is answered correctly', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
-    session.answer(1);
+    session.answer(pick(1));
     session.advance();
 
-    const result = session.answer(0);
+    const result = session.answer(pick(0));
     expect(result).toMatchObject({ wasCorrect: true, isFirstAttempt: false });
     expect(session.snapshot().awaitingRetry).toBe(false);
 
@@ -132,13 +140,13 @@ describe('QuizSession', () => {
     answerAll(session, 0, 3);
     expect(session.streak).toBe(3);
 
-    session.answer(1); // wrong: streak gone
+    session.answer(pick(1)); // wrong: streak gone
     expect(session.streak).toBe(0);
     session.advance();
-    session.answer(2); // wrong again on the retry
+    session.answer(pick(2)); // wrong again on the retry
     expect(session.snapshot().attempts).toBe(2);
     session.advance();
-    session.answer(0); // finally right
+    session.answer(pick(0)); // finally right
     session.advance();
 
     // Only the first attempt was recorded.
@@ -149,21 +157,21 @@ describe('QuizSession', () => {
   it('keeps retrying until the answer is right', () => {
     const session = new QuizSession(stubPack, 1, 5, 1);
     for (let i = 0; i < 4; i++) {
-      session.answer(1);
+      session.answer(pick(1));
       expect(session.snapshot().awaitingRetry).toBe(true);
       session.advance();
       expect(session.snapshot().questionNumber).toBe(1);
     }
-    session.answer(0);
+    session.answer(pick(0));
     session.advance();
     expect(session.snapshot().questionNumber).toBe(2);
   });
 
   it('reports isFirstAttempt correctly', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
-    expect(session.answer(1)?.isFirstAttempt).toBe(true);
+    expect(session.answer(pick(1))?.isFirstAttempt).toBe(true);
     session.advance();
-    expect(session.answer(1)?.isFirstAttempt).toBe(false);
+    expect(session.answer(pick(1))?.isFirstAttempt).toBe(false);
   });
 
   it('resets the attempt count on the next question', () => {
@@ -176,7 +184,7 @@ describe('QuizSession', () => {
     const session = new QuizSession(stubPack, 1, 10, 1);
     session.advance(); // no-op: still asking
     expect(session.snapshot().questionNumber).toBe(1);
-    session.answer(0);
+    session.answer(pick(0));
     session.advance();
     expect(session.snapshot().questionNumber).toBe(2);
   });
@@ -193,7 +201,7 @@ describe('QuizSession', () => {
   it('refuses further answers once finished', () => {
     const session = new QuizSession(stubPack, 1, 3, 1);
     answerAll(session, 0, 3);
-    expect(session.answer(0)).toBeNull();
+    expect(session.answer(pick(0))).toBeNull();
     expect(session.answers).toHaveLength(3);
   });
 
@@ -218,12 +226,12 @@ describe('QuizSession', () => {
   it('does not end the round until the last question is answered right', () => {
     const session = new QuizSession(stubPack, 1, 3, 1);
     answerAll(session, 0, 2);
-    session.answer(1); // wrong on the final question
+    session.answer(pick(1)); // wrong on the final question
     session.advance();
     expect(session.isFinished).toBe(false);
     expect(session.snapshot().questionNumber).toBe(3);
 
-    session.answer(0);
+    session.answer(pick(0));
     session.advance();
     expect(session.isFinished).toBe(true);
   });
@@ -258,6 +266,7 @@ describe('QuizSession', () => {
  */
 describe('QuizSession with a deck', () => {
   const deck: Question[] = [1, 2, 3, 4, 5].map((n) => ({
+    kind: 'choice',
     prompt: `7 x ${n}`,
     choices: [String(7 * n), 'a', 'b', 'c'],
     correctIndex: 0,
@@ -276,7 +285,7 @@ describe('QuizSession with a deck', () => {
     const asked: string[] = [];
     for (let i = 0; i < 5; i++) {
       asked.push(session.snapshot().question.prompt);
-      session.answer(0);
+      session.answer(pick(0));
       session.advance();
     }
     expect(asked).toEqual(deck.map((question) => question.prompt));
@@ -302,7 +311,7 @@ describe('QuizSession with a deck', () => {
   it('still puts a wrong question back rather than skipping it', () => {
     const session = deckSession();
     const first = session.snapshot().question.prompt;
-    session.answer(1);
+    session.answer(pick(1));
     expect(session.snapshot().awaitingRetry).toBe(true);
     session.advance();
     expect(session.snapshot().question.prompt).toBe(first);
@@ -329,14 +338,14 @@ describe('QuizSession question variety', () => {
         // would pass by luck.
         for (const seed of [1, 7, 99, 12345]) {
           const session = new QuizSession(pack, level.number, 40, seed);
-          let previous = keyOf(session.snapshot().question);
+          let previous = questionKey(session.snapshot().question);
 
           while (!session.isFinished) {
-            session.answer(session.snapshot().question.correctIndex);
+            session.answer(pick(session.snapshot().question.correctIndex));
             session.advance();
             if (session.isFinished) break;
 
-            const current = keyOf(session.snapshot().question);
+            const current = questionKey(session.snapshot().question);
             expect(
               current,
               `${pack.id} level ${level.number} seed ${seed} repeated "${current}"`,
@@ -354,22 +363,41 @@ describe('QuizSession question variety', () => {
     const asked = session.snapshot().question;
     const wrong = (asked.correctIndex + 1) % asked.choices.length;
 
-    session.answer(wrong);
+    session.answer(pick(wrong));
     session.advance();
     expect(session.snapshot().question).toBe(asked);
   });
 });
 
-function keyOf(question: {
-  instruction?: string;
-  prompt: string;
-  choices: string[];
-  correctIndex: number;
-}): string {
-  return `${question.instruction ?? ''}|${question.prompt}|${
-    question.choices[question.correctIndex] ?? ''
-  }`;
-}
+describe('game kinds', () => {
+  const question: Question = {
+    kind: 'choice',
+    prompt: '2 + 2',
+    choices: ['3', '4', '5'],
+    correctIndex: 1,
+  };
+
+  it('marks a choice by the button picked', () => {
+    expect(isCorrect(question, pick(1))).toBe(true);
+    expect(isCorrect(question, pick(0))).toBe(false);
+  });
+
+  it('includes the right answer in the key, so a fixed prompt still varies', () => {
+    const other: Question = { ...question, choices: ['3', '5', '4'], correctIndex: 1 };
+    expect(questionKey(question)).not.toBe(questionKey(other));
+  });
+
+  it('finds what is wrong with a malformed question', () => {
+    expect(questionProblems(question)).toEqual([]);
+    expect(questionProblems({ ...question, correctIndex: 3 })).toHaveLength(1);
+    expect(questionProblems({ ...question, choices: ['4', '4'] })).toHaveLength(1);
+    expect(questionProblems({ ...question, prompt: '' })).toContain('an empty prompt');
+  });
+
+  it('has something to say before every retry', () => {
+    expect(choiceKind.retryHint.length).toBeGreaterThan(0);
+  });
+});
 
 describe('question packs', () => {
   it('registers five packs with unique ids', () => {
@@ -392,17 +420,11 @@ describe('question packs', () => {
               defaultSelection(pack),
             );
 
-            expect(question.prompt.length).toBeGreaterThan(0);
-            expect(question.choices.length).toBeGreaterThanOrEqual(2);
-            expect(question.correctIndex).toBeGreaterThanOrEqual(0);
-            expect(question.correctIndex).toBeLessThan(question.choices.length);
-
-            // Duplicate options would make a question unanswerable or give it
-            // two right answers.
-            expect(new Set(question.choices).size).toBe(question.choices.length);
-            for (const choice of question.choices) {
-              expect(choice.trim().length).toBeGreaterThan(0);
-            }
+            // Whatever kind of question it is, its kind's own rules say
+            // whether it is well formed — so a new kind is checked here too.
+            expect(questionProblems(question), `${pack.id} level ${level.number}`).toEqual(
+              [],
+            );
           }
         }
       });
@@ -495,11 +517,9 @@ describe('pack options', () => {
             for (let i = 0; i < 40; i++) {
               const question = pack.generate(level.number, rng, selection);
               expect(
-                question.choices.length,
+                questionProblems(question),
                 `${pack.id}/${option.id}=${choice.value} level ${level.number}`,
-              ).toBeGreaterThanOrEqual(2);
-              expect(new Set(question.choices).size).toBe(question.choices.length);
-              expect(question.correctIndex).toBeLessThan(question.choices.length);
+              ).toEqual([]);
             }
           }
         }
