@@ -1,6 +1,6 @@
 # Elyse's Learning Game 🦊
 
-A small collection of educational games for a 7-year-old: arithmetic, spelling,
+A small collection of educational games for my 7-year-old: arithmetic, spelling,
 French and a nature quiz, plus counting for younger children. Answer correctly, the character celebrates, and stars
 accumulate towards a collection of 30 prizes. There is also a landscape to walk
 around, with a badge to win at every place on it.
