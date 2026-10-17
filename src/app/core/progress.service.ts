@@ -1,12 +1,18 @@
 import { Injectable, computed } from '@angular/core';
 import { storedSignal } from './stored-signal';
 import {
+  prizesHeldAt,
   completedSets,
-  nextPrizeAfter,
+  nextPrizeToEarn,
   Prize,
-  prizesUnlockedAt,
   PRIZES,
+  PRIZES_BY_ID,
+  progressTowardNextPrize,
 } from './prizes';
+import { buildMapLayout, regionIdForPlace, spotFor } from '../explore/map-layout';
+import { CROSSROADS, levelBookKey } from '../explore/sticker-books';
+
+export { CROSSROADS };
 
 export interface PackStats {
   answered: number;
@@ -14,26 +20,43 @@ export interface PackStats {
   bestLevel: number;
 }
 
+/**
+ * One sticker book: the collection of a single game in a single area (see
+ * `sticker-books.ts` for how books are keyed).
+ */
+export interface StickerBook {
+  /** The area (map region id) the book belongs to. */
+  area: string;
+  /** Stars earned in this book's game, which is what unlocks its stickers. */
+  stars: number;
+  /** Stickers held here, in unlock order. */
+  prizeIds: string[];
+}
+
 export interface ProgressState {
+  /** Every star ever earned, across all books. */
   stars: number;
   answered: number;
   correct: number;
   bestStreak: number;
-  unlockedPrizeIds: string[];
-  /**
-   * Where each prize was won: a challenge id, `region:<id>` for an ordinary
-   * round, or `pack:<id>` when only the game is known.
-   *
-   * Prizes unlock on a cumulative star total, which knows nothing about place —
-   * so the place has to be recorded as it happens. It is what lets the map show
-   * a prize where she earned it rather than in a list, which is a much better
-   * souvenir: the landscape fills up with the things she did there.
-   */
-  prizePlaces: Record<string, string>;
+  /** Every game's own sticker book, by book key. */
+  books: Record<string, StickerBook>;
   packStats: Record<string, PackStats>;
   /** ISO yyyy-mm-dd of the last day a question was answered. */
   lastPlayedDay: string | null;
   dayStreak: number;
+  /**
+   * The single shared collection from before each game had its own. Only
+   * present in old saves; moved into `books` on load (see `moveIntoBooks`).
+   */
+  unlockedPrizeIds?: string[];
+  /** Where each of those old stickers was won. Old saves only. */
+  prizePlaces?: Record<string, string>;
+  /**
+   * Briefly, each area had one collection, with where in it each sticker was
+   * won. Saves from then only; moved into `books` on load.
+   */
+  areas?: Record<string, { prizeIds: string[]; places: Record<string, string> }>;
 }
 
 const EMPTY: ProgressState = {
@@ -41,8 +64,7 @@ const EMPTY: ProgressState = {
   answered: 0,
   correct: 0,
   bestStreak: 0,
-  unlockedPrizeIds: [],
-  prizePlaces: {},
+  books: {},
   packStats: {},
   lastPlayedDay: null,
   dayStreak: 0,
@@ -50,9 +72,18 @@ const EMPTY: ProgressState = {
 
 export interface AnswerOutcome {
   starsAwarded: number;
+  /** Book the answer counted towards. */
+  book: string;
   newPrizes: Prize[];
-  /** True when this answer completed a whole collection. */
+  /** Collections this answer completed in its book. */
   completedSetIds: string[];
+}
+
+/** A sticker as held in one book — the unit the map and play screen draw. */
+export interface WonPrize {
+  book: string;
+  area: string;
+  prize: Prize;
 }
 
 export function localDayKey(date: Date): string {
@@ -93,8 +124,9 @@ export function starsForAnswer(streak: number): number {
  */
 export function backfillPrizePlaces(state: ProgressState): ProgressState {
   const places = { ...(state.prizePlaces ?? {}) };
+  const unlocked = state.unlockedPrizeIds ?? [];
   const missing = PRIZES.filter(
-    (prize) => state.unlockedPrizeIds.includes(prize.id) && !places[prize.id],
+    (prize) => unlocked.includes(prize.id) && !places[prize.id],
   );
   const weights = Object.entries(state.packStats ?? {})
     .map(([packId, stats]) => ({ packId, weight: stats.correct || stats.answered }))
@@ -121,15 +153,76 @@ export function backfillPrizePlaces(state: ProgressState): ProgressState {
   return { ...state, prizePlaces: places };
 }
 
+/**
+ * Moves an old save's single collection into per-game books.
+ *
+ * Each old sticker goes to the game it was won at when that is known (places
+ * are filled in first by `backfillPrizePlaces`). One only known to an area
+ * goes in that area's `region:` book, and one known to nothing at the
+ * crossroads. Nothing she has is lost. A book's star count starts from zero;
+ * the carried-over stickers are simply held on top of whatever its stars
+ * unlock.
+ *
+ * Returns the state unchanged when it is already in the new shape.
+ */
+export function moveIntoBooks(
+  state: ProgressState,
+  where: {
+    /** The area a place is in: a challenge id, `region:<id>` or `pack:<id>`. */
+    areaForPlace: (place: string | undefined, prizeId: string) => string | undefined;
+    /** Whether a place is a challenge with its own spot. */
+    isSpot: (place: string) => boolean;
+  },
+): ProgressState {
+  if (
+    state.books &&
+    state.unlockedPrizeIds === undefined &&
+    state.prizePlaces === undefined &&
+    state.areas === undefined
+  ) {
+    return state;
+  }
+  const filled = backfillPrizePlaces(state);
+  const places = filled.prizePlaces ?? {};
+  const unlocked = filled.unlockedPrizeIds ?? [];
+  const books: Record<string, StickerBook> = { ...(state.books ?? {}) };
+  for (const prize of PRIZES) {
+    if (!unlocked.includes(prize.id)) continue;
+    const place = places[prize.id];
+    const area = where.areaForPlace(place, prize.id) ?? CROSSROADS;
+    const key =
+      place && where.isSpot(place) ? place : area === CROSSROADS ? CROSSROADS : `region:${area}`;
+    const current = books[key] ?? { area, stars: 0, prizeIds: [] };
+    if (current.prizeIds.includes(prize.id)) continue;
+    books[key] = { ...current, prizeIds: [...current.prizeIds, prize.id] };
+  }
+  for (const [area, held] of Object.entries(state.areas ?? {})) {
+    for (const id of held.prizeIds) {
+      const place = held.places[id];
+      const key = place && where.isSpot(place) ? place : `region:${area}`;
+      const current = books[key] ?? { area, stars: 0, prizeIds: [] };
+      if (current.prizeIds.includes(id)) continue;
+      books[key] = { ...current, prizeIds: [...current.prizeIds, id] };
+    }
+  }
+  const { unlockedPrizeIds: _ids, prizePlaces: _places, areas: _areas, ...rest } = filled;
+  return { ...rest, books };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProgressService {
   private readonly state = storedSignal<ProgressState>('klg.progress', EMPTY);
+  private readonly layout = buildMapLayout();
 
   constructor() {
-    // Written back once, so an old prize keeps the home it is given today
+    // Written back once, so an old sticker keeps the book it is given today
     // rather than drifting as the play history grows.
-    const filled = backfillPrizePlaces(this.state());
-    if (filled !== this.state()) this.state.set(filled);
+    const layout = this.layout;
+    const moved = moveIntoBooks(this.state(), {
+      areaForPlace: (place, prizeId) => regionIdForPlace(layout, place, prizeId),
+      isSpot: (place) => spotFor(layout, place) !== undefined,
+    });
+    if (moved !== this.state()) this.state.set(moved);
   }
 
   readonly stars = computed(() => this.state().stars);
@@ -138,39 +231,93 @@ export class ProgressService {
   readonly bestStreak = computed(() => this.state().bestStreak);
   readonly dayStreak = computed(() => this.state().dayStreak);
 
-  readonly unlockedPrizeIds = computed(
-    () => new Set(this.state().unlockedPrizeIds),
+  /** Every game's own sticker book, by book key. */
+  readonly books = computed(() => this.state().books ?? {});
+
+  /** Every sticker held, one entry per book that holds it. */
+  readonly wonPrizes = computed<WonPrize[]>(() =>
+    Object.entries(this.books()).flatMap(([book, held]) =>
+      held.prizeIds.flatMap((id) => {
+        const prize = PRIZES_BY_ID.get(id);
+        return prize ? [{ book, area: held.area, prize }] : [];
+      }),
+    ),
   );
+
+  /** How many books hold each sticker. Missing means none yet. */
+  readonly prizeCounts = computed(() => {
+    const counts = new Map<string, number>();
+    for (const won of this.wonPrizes()) {
+      counts.set(won.prize.id, (counts.get(won.prize.id) ?? 0) + 1);
+    }
+    return counts;
+  });
+
+  /** Stickers held across every book, counting repeats. */
+  readonly prizeTotal = computed(() => this.wonPrizes().length);
 
   /**
-   * Where each prize was won. Old prizes are given a place on load (see
-   * `backfillPrizePlaces`); one can still be absent with no play history to
-   * go on, which the map treats as "somewhere in the middle".
+   * The sticker closest to landing, for the games list: among the books she
+   * has earned stars in, the one with fewest stars still to go. Before she
+   * has earned anything, the first sticker, which any game will pay.
    */
-  readonly prizePlaces = computed(() => this.state().prizePlaces ?? {});
-  readonly unlockedPrizes = computed(() =>
-    PRIZES.filter((prize) => this.unlockedPrizeIds().has(prize.id)),
-  );
-  readonly nextPrize = computed(() => nextPrizeAfter(this.stars()));
-  readonly completedSets = computed(() => completedSets(this.unlockedPrizeIds()));
-
-  /** 0..1 towards the next prize, or 1 when everything is collected. */
-  readonly progressToNextPrize = computed(() => {
-    const next = this.nextPrize();
-    if (!next) return 1;
-    const previous = PRIZES.filter((p) => p.starsRequired <= this.stars());
-    const floor = previous.length
-      ? previous[previous.length - 1].starsRequired
-      : 0;
-    const span = next.starsRequired - floor;
-    if (span <= 0) return 1;
-    return Math.min(1, Math.max(0, (this.stars() - floor) / span));
+  readonly nearestNextPrize = computed(() => {
+    let best: {
+      book: string | null;
+      prize: Prize;
+      starsToGo: number;
+      progress: number;
+    } | null = null;
+    for (const [book, held] of Object.entries(this.books())) {
+      // Carried-over books earn nothing new, so they are not worked towards.
+      if (held.stars === 0) continue;
+      const prize = this.nextPrizeIn(book);
+      if (!prize) continue;
+      const starsToGo = Math.max(0, prize.starsRequired - held.stars);
+      if (!best || starsToGo < best.starsToGo) {
+        best = { book, prize, starsToGo, progress: this.progressToNextPrizeIn(book) };
+      }
+    }
+    return (
+      best ?? {
+        book: null,
+        prize: PRIZES[0],
+        starsToGo: PRIZES[0].starsRequired,
+        progress: 0,
+      }
+    );
   });
 
   readonly accuracy = computed(() => {
     const { answered, correct } = this.state();
     return answered === 0 ? 0 : correct / answered;
   });
+
+  starsIn(book: string): number {
+    return this.books()[book]?.stars ?? 0;
+  }
+
+  /** One book's stickers, in unlock order. */
+  prizesIn(book: string): Prize[] {
+    return this.wonPrizes()
+      .filter((won) => won.book === book)
+      .map((won) => won.prize);
+  }
+
+  nextPrizeIn(book: string): Prize | null {
+    return nextPrizeToEarn(new Set(this.books()[book]?.prizeIds ?? []));
+  }
+
+  /** 0..1 towards a book's next sticker, or 1 when it has them all. */
+  progressToNextPrizeIn(book: string): number {
+    const held = this.books()[book];
+    return progressTowardNextPrize(held?.stars ?? 0, new Set(held?.prizeIds ?? []));
+  }
+
+  /** Collections finished in a book. */
+  completedSetsIn(book: string) {
+    return completedSets(new Set(this.books()[book]?.prizeIds ?? []));
+  }
 
   statsFor(packId: string): PackStats {
     return this.state().packStats[packId] ?? { answered: 0, correct: 0, bestLevel: 1 };
@@ -187,29 +334,35 @@ export class ProgressService {
     streak: number;
     level: number;
     /**
-     * Challenge id, or `region:<id>` for an ordinary round. Defaults to
-     * `pack:<id>`.
+     * The sticker book this round fills (see `bookForRound`). Its stars and
+     * stickers are its own. Defaults to the game's level book.
      */
-    place?: string;
+    book?: string;
+    /** The area (map region id) the book belongs to. */
+    area?: string;
     now?: Date;
   }): AnswerOutcome {
     const { packId, wasCorrect, streak, level } = options;
-    const place = options.place ?? `pack:${packId}`;
+    const book = options.book ?? levelBookKey(packId, level);
     const today = localDayKey(options.now ?? new Date());
     const before = this.state();
 
     const starsAwarded = wasCorrect ? starsForAnswer(streak) : 0;
     const stars = before.stars + starsAwarded;
 
-    // Unlocks are derived from the star total rather than tracked incrementally,
-    // so the collection stays consistent even if thresholds are retuned later.
-    const previouslyUnlocked = new Set(before.unlockedPrizeIds);
-    const nowUnlocked = prizesUnlockedAt(stars);
-    const newPrizes = nowUnlocked.filter((p) => !previouslyUnlocked.has(p.id));
+    // Unlocks are derived from the book's star total rather than tracked
+    // incrementally, so the collection stays consistent even if thresholds are
+    // retuned later.
+    const bookBefore = before.books?.[book];
+    const area = options.area ?? bookBefore?.area ?? CROSSROADS;
+    const bookStars = (bookBefore?.stars ?? 0) + starsAwarded;
+    const previouslyHeld = new Set(bookBefore?.prizeIds ?? []);
+    const nowHeld = prizesHeldAt(bookStars, previouslyHeld);
+    const newPrizes = nowHeld.filter((p) => !previouslyHeld.has(p.id));
 
-    const setsBefore = new Set(completedSets(previouslyUnlocked).map((s) => s.id));
-    const unlockedIds = nowUnlocked.map((p) => p.id);
-    const completedSetIds = completedSets(new Set(unlockedIds))
+    const setsBefore = new Set(completedSets(previouslyHeld).map((s) => s.id));
+    const heldIds = nowHeld.map((p) => p.id);
+    const completedSetIds = completedSets(new Set(heldIds))
       .map((s) => s.id)
       .filter((id) => !setsBefore.has(id));
 
@@ -227,16 +380,18 @@ export class ProgressService {
     else if (gap > 1) dayStreak = 1;
     else if (before.dayStreak === 0) dayStreak = 1;
 
+    // A book appears once something is earned in it, not on a wrong answer.
+    const books =
+      starsAwarded > 0
+        ? { ...before.books, [book]: { area, stars: bookStars, prizeIds: heldIds } }
+        : before.books;
+
     this.state.set({
       stars,
       answered: before.answered + 1,
       correct: before.correct + (wasCorrect ? 1 : 0),
       bestStreak: Math.max(before.bestStreak, streak),
-      unlockedPrizeIds: unlockedIds,
-      prizePlaces: {
-        ...(before.prizePlaces ?? {}),
-        ...Object.fromEntries(newPrizes.map((prize) => [prize.id, place])),
-      },
+      books,
       packStats: {
         ...before.packStats,
         [packId]: {
@@ -249,7 +404,7 @@ export class ProgressService {
       dayStreak,
     });
 
-    return { starsAwarded, newPrizes, completedSetIds };
+    return { starsAwarded, book, newPrizes, completedSetIds };
   }
 
   reset(): void {

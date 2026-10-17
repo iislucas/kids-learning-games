@@ -119,6 +119,15 @@
             <p class="hint">{{ hint }}</p>
           }
 
+          <p class="hint finish__stickers">
+            {{ bookPrizeCount() }} of {{ prizeCatalogueSize }} stickers in this
+            game
+            @if (nextPrizeHere(); as next) {
+              · next {{ next.prize.emoji }} in {{ next.starsToGo }}
+              {{ next.starsToGo === 1 ? 'star' : 'stars' }}
+            }
+          </p>
+
           <div class="finish__actions">
             <button class="btn btn--block" type="button" (click)="playAgain()">
               {{ challenge() ? 'Try it again' : 'Play again' }}

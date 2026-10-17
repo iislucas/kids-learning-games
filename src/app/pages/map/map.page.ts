@@ -63,7 +63,6 @@ import {
   MapRegion,
   MapSpot,
   buildMapLayout,
-  regionIdForPlace,
   spotAt,
   spotFor,
 } from '../../explore/map-layout';
@@ -98,6 +97,8 @@ interface SpotView {
 }
 
 interface PlacedPrize {
+  /** Book and sticker together: the same sticker can be won in every book. */
+  key: string;
   prize: Prize;
   x: number;
   y: number;
@@ -270,47 +271,49 @@ export class MapPage {
   });
 
   /**
-   * Prizes shown where they were won.
+   * Stickers shown where they were won. Every game has its own sticker book,
+   * so each spot gathers its own heap.
    *
-   * One won at a spot sits just beside that spot. One won in an ordinary round
-   * only knows its region, so it lies somewhere out in that region's ground.
-   * Only a prize with no home at all gathers at the crossroads — which reads
-   * fine, as the place she set out from.
+   * A challenge's stickers sit just beside its spot. An ordinary round has no
+   * spot, so its stickers lie somewhere out in its area's ground. Only a
+   * sticker with no area at all gathers at the crossroads — which reads fine,
+   * as the place she set out from.
    */
-  readonly placedPrizes = computed<PlacedPrize[]>(() => {
-    const places = this.progress.prizePlaces();
-    return this.progress.unlockedPrizes().map((prize) => {
-      const place = places[prize.id];
-      const angle = noise(`${prize.id}-angle`) * Math.PI * 2;
-      const spot = place ? spotFor(this.layout, place) : undefined;
+  readonly placedPrizes = computed<PlacedPrize[]>(() =>
+    this.progress.wonPrizes().map(({ book, area, prize }) => {
+      const key = `${book}:${prize.id}`;
+      const angle = noise(`${key}-angle`) * Math.PI * 2;
+      const spot = spotFor(this.layout, book);
       if (spot) {
         // Around the spot, so several won at one place do not stack.
-        const distance = 62 + noise(`${prize.id}-dist`) * 46;
+        const distance = 62 + noise(`${key}-dist`) * 46;
         return {
+          key,
           prize,
           x: Math.round(spot.x + Math.cos(angle) * distance),
           y: Math.round(spot.y + Math.sin(angle) * distance * 0.7),
         };
       }
-      const regionId = regionIdForPlace(this.layout, place, prize.id);
-      const region = this.layout.regions.find((r) => r.id === regionId);
+      const region = this.layout.regions.find((r) => r.id === area);
       if (region) {
         // Anywhere in the region's ground, clear of its outer edge.
-        const reach = 0.3 + noise(`${prize.id}-dist`) * 0.55;
+        const reach = 0.3 + noise(`${key}-dist`) * 0.55;
         return {
+          key,
           prize,
           x: Math.round(region.cx + Math.cos(angle) * region.rx * reach),
           y: Math.round(region.cy + Math.sin(angle) * region.ry * reach),
         };
       }
-      const distance = 40 + noise(`${prize.id}-dist`) * 50;
+      const distance = 40 + noise(`${key}-dist`) * 50;
       return {
+        key,
         prize,
         x: Math.round(this.layout.start.x + Math.cos(angle) * distance),
         y: Math.round(this.layout.start.y + Math.sin(angle) * distance * 0.7),
       };
-    });
-  });
+    }),
+  );
 
   /** The signpost card that is open, if any. */
   readonly openSpot = computed<SpotView | null>(
