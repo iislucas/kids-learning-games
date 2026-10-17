@@ -8,12 +8,16 @@
     <div>
       <h1>My prizes</h1>
       <p class="summary__count">
-        <strong>{{ collectedCount() }}</strong> of {{ totalPrizes() }} collected
+        <strong>{{ collectedCount() }}</strong>
+        {{ collectedCount() === 1 ? 'sticker' : 'stickers' }} collected
       </p>
-      @if (nextPrize(); as prize) {
+      @if (nextPrize(); as next) {
         <p class="hint">
-          Next up: {{ prize.emoji }} {{ prize.name }} at
-          {{ prize.starsRequired }} stars
+          Next up: {{ next.prize.emoji }} {{ next.prize.name }} in
+          {{ next.starsToGo }} {{ next.starsToGo === 1 ? 'star' : 'stars' }}
+          @if (nextPrizeArea(); as area) {
+            at {{ area.emoji }} {{ area.name }}
+          }
         </p>
       } @else {
         <p class="hint">Everything collected. Incredible! 🏆</p>
@@ -27,6 +31,43 @@
     <li><span aria-hidden="true">📅</span><strong>{{ dayStreak() }}</strong>day streak</li>
     <li><span aria-hidden="true">🎯</span><strong>{{ accuracyPercent() }}%</strong>correct</li>
   </ul>
+
+  <section class="collection">
+    <h2 class="collection__title">
+      <span aria-hidden="true">📒</span>
+      Sticker books
+    </h2>
+    <p class="hint badgekey">Every place has its own book of {{ perPlace }} stickers.</p>
+    <ul class="books">
+      @for (book of areas(); track book.region.id) {
+        <li
+          class="book"
+          [attr.aria-label]="
+            book.region.name + ', ' + book.owned + ' of ' + perPlace + ' stickers'
+          "
+        >
+          <span class="book__emoji" aria-hidden="true">{{ book.region.emoji }}</span>
+          <span class="book__body">
+            <span class="book__name">
+              {{ book.region.name }}
+              <span class="collection__count">{{ book.owned }}/{{ perPlace }}</span>
+            </span>
+            @if (book.next; as next) {
+              <span class="hint">
+                Next {{ next.emoji }} in {{ book.starsToGo }}
+                {{ book.starsToGo === 1 ? 'star' : 'stars' }}
+              </span>
+              <span class="bar" aria-hidden="true">
+                <span class="bar__fill" [style.width.%]="book.progressPercent"></span>
+              </span>
+            } @else {
+              <span class="hint">Book full! 🏆</span>
+            }
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
 
   <section class="collection">
     <h2 class="collection__title">
@@ -81,9 +122,12 @@
         <span class="collection__count">
           {{ collection.owned }}/{{ collection.total }}
         </span>
-        @if (collection.complete) {
+        @if (collection.trophies > 0) {
           <span class="collection__trophy" title="Collection complete!">
             {{ collection.set.trophy }}
+            @if (collection.trophies > 1) {
+              <span class="collection__times">×{{ collection.trophies }}</span>
+            }
           </span>
         }
       </h2>
@@ -95,10 +139,13 @@
             [class.prize--locked]="!prize.unlocked"
             [attr.aria-label]="
               prize.unlocked
-                ? prize.name + ', collected'
-                : prize.name + ', locked, needs ' + prize.starsRequired + ' stars'
+                ? prize.name + ', collected ' + prize.count + (prize.count === 1 ? ' time' : ' times')
+                : prize.name + ', locked, needs ' + prize.starsRequired + ' stars in one place'
             "
           >
+            @if (prize.count > 1) {
+              <span class="prize__times" aria-hidden="true">×{{ prize.count }}</span>
+            }
             <span class="prize__emoji" aria-hidden="true">{{ prize.emoji }}</span>
             @if (prize.unlocked) {
               <span class="prize__name">{{ prize.name }}</span>

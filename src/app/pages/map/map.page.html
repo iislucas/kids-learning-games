@@ -135,7 +135,7 @@
       }
 
       <!-- Prizes sit where they were won. -->
-      @for (won of placedPrizes(); track won.prize.id) {
+      @for (won of placedPrizes(); track won.key) {
         <span
           class="prize"
           [style.left.px]="won.x"

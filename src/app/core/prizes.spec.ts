@@ -1,4 +1,7 @@
 import {
+  areaPrizesAt,
+  nextAreaPrize,
+  progressTowardNextPrize,
   completedSets,
   nextPrizeAfter,
   PRIZE_SETS,
@@ -118,5 +121,33 @@ describe('starsForAnswer', () => {
         starsForAnswer(streak),
       );
     }
+  });
+});
+
+describe('per-area unlocking', () => {
+  it('keeps held stickers even below their threshold', () => {
+    const held = new Set([PRIZES[5].id]);
+    expect(areaPrizesAt(0, held).map((p) => p.id)).toEqual([PRIZES[5].id]);
+    expect(areaPrizesAt(PRIZES[0].starsRequired, held).map((p) => p.id)).toEqual([
+      PRIZES[0].id,
+      PRIZES[5].id,
+    ]);
+  });
+
+  it('works towards the first sticker not yet held', () => {
+    expect(nextAreaPrize(new Set())?.id).toBe(PRIZES[0].id);
+    expect(nextAreaPrize(new Set([PRIZES[0].id]))?.id).toBe(PRIZES[1].id);
+    expect(nextAreaPrize(new Set(PRIZES.map((p) => p.id)))).toBeNull();
+  });
+
+  it('measures progress from the last threshold reached', () => {
+    const first = PRIZES[0].starsRequired;
+    const second = PRIZES[1].starsRequired;
+    const held = new Set([PRIZES[0].id]);
+    expect(progressTowardNextPrize(first, held)).toBe(0);
+    expect(progressTowardNextPrize(second - 1, held)).toBeCloseTo(
+      (second - 1 - first) / (second - first),
+    );
+    expect(progressTowardNextPrize(0, new Set(PRIZES.map((p) => p.id)))).toBe(1);
   });
 });

@@ -10,6 +10,7 @@ import { MediaService } from '../../media/media.service';
 import { QUESTION_PACKS } from '../../quiz/pack-registry';
 import { PackOptionsService } from '../../quiz/pack-options.service';
 import { ALL_CHALLENGES } from '../../quiz/challenges';
+import { buildMapLayout } from '../../explore/map-layout';
 import { SpriteCharacter } from '../../components/sprite-character/sprite-character';
 
 @Component({
@@ -32,8 +33,15 @@ export class HomePage {
   readonly packs = QUESTION_PACKS;
   readonly stars = this.progress.stars;
   readonly dayStreak = this.progress.dayStreak;
-  readonly nextPrize = this.progress.nextPrize;
-  readonly progressToNextPrize = this.progress.progressToNextPrize;
+  /** The sticker closest to landing, in whichever area it is closest. */
+  readonly nextPrize = this.progress.nearestNextPrize;
+  private readonly regions = buildMapLayout().regions;
+
+  /** The area that sticker is in, or null when any area will pay it. */
+  readonly nextPrizeArea = computed(() => {
+    const area = this.nextPrize()?.area;
+    return this.regions.find((region) => region.id === area) ?? null;
+  });
 
   readonly prizesHref = computed(() => this.router.hrefForView(Views.Prizes));
   readonly mapHref = computed(() => this.router.hrefForView(Views.Map));
@@ -60,13 +68,8 @@ export class HomePage {
   );
 
   readonly progressPercent = computed(() =>
-    Math.round(this.progressToNextPrize() * 100),
+    Math.round((this.nextPrize()?.progress ?? 1) * 100),
   );
-
-  readonly starsToNextPrize = computed(() => {
-    const next = this.nextPrize();
-    return next ? Math.max(0, next.starsRequired - this.stars()) : 0;
-  });
 
   go(event: Event, href: string, level?: number): void {
     const mouse = event as MouseEvent;

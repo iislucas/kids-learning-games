@@ -13,8 +13,8 @@ import { RoutingService } from '../../routing/routing.service';
 import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
 import { Rng } from '../../core/rng';
-import { ProgressService } from '../../core/progress.service';
-import { Prize } from '../../core/prizes';
+import { CROSSROADS, ProgressService } from '../../core/progress.service';
+import { Prize, PRIZES } from '../../core/prizes';
 import { Badge, badgesFor } from '../../core/mastery';
 import { MasteryService } from '../../core/mastery.service';
 import { MediaService } from '../../media/media.service';
@@ -27,7 +27,6 @@ import { PackOptionsService } from '../../quiz/pack-options.service';
 import {
   buildMapLayout,
   regionForRound,
-  regionIdForPlace,
 } from '../../explore/map-layout';
 import { cssUrl, svgDataUrl, terrainTileSvg } from '../../explore/map-art';
 import { QuizSession, QuizSnapshot } from '../../quiz/quiz-session';
@@ -179,29 +178,40 @@ export class PlayPage {
   readonly stars = this.progress.stars;
 
   /**
-   * The prizes won right here, and only those: the backdrop is a record of what
-   * she has done in this place.
+   * The stickers won right here, and only those: the backdrop is a record of
+   * what she has done in this place.
    *
-   * A challenge is its own place, so the −7 and −8 families each show their own
-   * prizes rather than sharing the Take-Away Caves' heap. An ordinary round has
-   * no spot, so it shows everything won in its region.
+   * Each area has its own collection. A challenge is its own spot within it,
+   * so the −7 and −8 families each show their own stickers rather than sharing
+   * the Take-Away Caves' heap. An ordinary round has no spot, so it shows the
+   * whole area's collection.
    */
   readonly prizesWonHere = computed(() => {
-    const places = this.progress.prizePlaces();
+    const won = this.progress.prizesIn(this.areaOfRound());
     const challengeId = this.challenge()?.id;
-    if (challengeId) {
-      return this.progress
-        .unlockedPrizes()
-        .filter((prize) => places[prize.id] === challengeId);
-    }
-    const regionId = this.region()?.id;
-    if (!regionId) return [];
-    return this.progress
-      .unlockedPrizes()
-      .filter(
-        (prize) => regionIdForPlace(this.layout, places[prize.id], prize.id) === regionId,
-      );
+    const here = challengeId ? won.filter((w) => w.place === challengeId) : won;
+    return here.map((w) => w.prize);
   });
+
+  /** The area this round's stars and stickers count towards. */
+  readonly areaOfRound = computed(() => this.region()?.id ?? CROSSROADS);
+
+  /** The next sticker this area is working towards, for the end of the round. */
+  readonly nextPrizeHere = computed(() => {
+    const area = this.areaOfRound();
+    const prize = this.progress.nextPrizeIn(area);
+    if (!prize) return null;
+    return {
+      prize,
+      starsToGo: Math.max(0, prize.starsRequired - this.progress.areaStars(area)),
+    };
+  });
+
+  /** Stickers this area holds out of the whole catalogue. */
+  readonly areaPrizeCount = computed(
+    () => this.progress.prizesIn(this.areaOfRound()).length,
+  );
+  readonly prizeCatalogueSize = PRIZES.length;
 
   /**
    * Prizes won during this round, kept for the whole round so the backdrop
@@ -352,7 +362,9 @@ export class PlayPage {
         wasCorrect: result.wasCorrect,
         streak: result.streak,
         level: this.level(),
-        // So a prize won here can be left on the map where it was won.
+        // Each area earns its own stickers, and a sticker won here is left on
+        // the map where it was won.
+        area: this.areaOfRound(),
         place: this.placeOfRound(),
       });
       this.starsJustWon.set(outcome.starsAwarded);

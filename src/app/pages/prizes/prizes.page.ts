@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { AppPathPatterns, Views } from '../../app.config';
 import { RoutingService } from '../../routing/routing.service';
 import { ProgressService } from '../../core/progress.service';
-import { PRIZE_SETS, prizesInSet } from '../../core/prizes';
+import { PRIZE_SETS, PRIZES, prizesInSet } from '../../core/prizes';
+import { buildMapLayout } from '../../explore/map-layout';
 import { BADGES, BadgeId } from '../../core/mastery';
 import { MasteryService } from '../../core/mastery.service';
 import { MediaService } from '../../media/media.service';
@@ -28,41 +29,72 @@ export class PrizesPage {
   readonly badges = BADGES;
   readonly mapHref = computed(() => this.router.hrefForView(Views.Map));
   readonly stars = this.progress.stars;
-  readonly nextPrize = this.progress.nextPrize;
+  readonly nextPrize = this.progress.nearestNextPrize;
   readonly bestStreak = this.progress.bestStreak;
   readonly dayStreak = this.progress.dayStreak;
 
-  readonly collectedCount = computed(() => this.progress.unlockedPrizes().length);
+  /** Stickers held across every place, counting repeats. */
+  readonly collectedCount = this.progress.prizeTotal;
 
   readonly accuracyPercent = computed(() =>
     Math.round(this.progress.accuracy() * 100),
   );
 
+  private readonly regions = buildMapLayout().regions;
+
   /**
-   * Locked prizes are shown as silhouettes with their star cost rather than
-   * hidden — seeing what is coming is most of the motivation.
+   * Every place on the map with its own sticker book: how full it is and what
+   * it is working towards. Places not played yet are shown too, so it is
+   * obvious that a new place starts paying out from the first sticker.
    */
-  readonly collections = computed(() => {
-    const unlocked = this.progress.unlockedPrizeIds();
-    return PRIZE_SETS.map((set) => {
-      const prizes = prizesInSet(set.id).map((prize) => ({
-        ...prize,
-        unlocked: unlocked.has(prize.id),
-      }));
-      const owned = prizes.filter((p) => p.unlocked).length;
+  readonly areas = computed(() => {
+    this.progress.areas();
+    return this.regions.map((region) => {
+      const owned = this.progress.prizesIn(region.id).length;
+      const next = this.progress.nextPrizeIn(region.id);
       return {
-        set,
-        prizes,
+        region,
         owned,
-        total: prizes.length,
-        complete: owned === prizes.length,
+        next,
+        starsToGo: next
+          ? Math.max(0, next.starsRequired - this.progress.areaStars(region.id))
+          : 0,
+        progressPercent: Math.round(this.progress.progressToNextPrizeIn(region.id) * 100),
       };
     });
   });
 
-  readonly totalPrizes = computed(() =>
-    this.collections().reduce((sum, c) => sum + c.total, 0),
-  );
+  /** Stickers each place can collect. */
+  readonly perPlace = PRIZES.length;
+
+  /** Name of the place the next sticker is in, if it is one particular place. */
+  readonly nextPrizeArea = computed(() => {
+    const area = this.nextPrize()?.area;
+    return this.regions.find((region) => region.id === area) ?? null;
+  });
+
+  /**
+   * The whole catalogue, counting how many places hold each sticker. Every
+   * place can win one of each, so a sticker can be owned several times.
+   * Stickers not won anywhere yet are shown as silhouettes with their star
+   * cost rather than hidden — seeing what is coming is most of the motivation.
+   */
+  readonly collections = computed(() => {
+    const counts = this.progress.prizeCounts();
+    const areaIds = Object.keys(this.progress.areas());
+    return PRIZE_SETS.map((set) => {
+      const prizes = prizesInSet(set.id).map((prize) => {
+        const count = counts.get(prize.id) ?? 0;
+        return { ...prize, count, unlocked: count > 0 };
+      });
+      const owned = prizes.filter((p) => p.unlocked).length;
+      // A trophy for every place that has finished this set.
+      const trophies = areaIds.filter((area) =>
+        this.progress.completedSetsIn(area).some((done) => done.id === set.id),
+      ).length;
+      return { set, prizes, owned, total: prizes.length, trophies };
+    });
+  });
 
   /**
    * The badges won out on the map, grouped by game. Shown next to the stickers

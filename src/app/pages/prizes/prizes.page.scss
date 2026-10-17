@@ -80,6 +80,7 @@
 }
 
 .prize {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -103,6 +104,86 @@
   font-weight: 700;
   color: var(--ink-soft);
   line-height: 1.15;
+}
+
+/* How many places hold this sticker, once it is more than one. */
+.prize__times {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--gold);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.collection__times {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* One row per place: its own sticker book and how near the next sticker is. */
+.books {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.book {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--line);
+}
+
+.book__emoji {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.book__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.book__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.bar {
+  display: block;
+  height: 8px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold), #ff9f43);
+  transition: width 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar__fill {
+    transition: none;
+  }
 }
 
 /* Locked prizes stay visible as silhouettes: knowing what is next is the
