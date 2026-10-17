@@ -1,6 +1,6 @@
 import {
-  areaPrizesAt,
-  nextAreaPrize,
+  prizesHeldAt,
+  nextPrizeToEarn,
   progressTowardNextPrize,
   completedSets,
   nextPrizeAfter,
@@ -127,17 +127,17 @@ describe('starsForAnswer', () => {
 describe('per-area unlocking', () => {
   it('keeps held stickers even below their threshold', () => {
     const held = new Set([PRIZES[5].id]);
-    expect(areaPrizesAt(0, held).map((p) => p.id)).toEqual([PRIZES[5].id]);
-    expect(areaPrizesAt(PRIZES[0].starsRequired, held).map((p) => p.id)).toEqual([
+    expect(prizesHeldAt(0, held).map((p) => p.id)).toEqual([PRIZES[5].id]);
+    expect(prizesHeldAt(PRIZES[0].starsRequired, held).map((p) => p.id)).toEqual([
       PRIZES[0].id,
       PRIZES[5].id,
     ]);
   });
 
   it('works towards the first sticker not yet held', () => {
-    expect(nextAreaPrize(new Set())?.id).toBe(PRIZES[0].id);
-    expect(nextAreaPrize(new Set([PRIZES[0].id]))?.id).toBe(PRIZES[1].id);
-    expect(nextAreaPrize(new Set(PRIZES.map((p) => p.id)))).toBeNull();
+    expect(nextPrizeToEarn(new Set())?.id).toBe(PRIZES[0].id);
+    expect(nextPrizeToEarn(new Set([PRIZES[0].id]))?.id).toBe(PRIZES[1].id);
+    expect(nextPrizeToEarn(new Set(PRIZES.map((p) => p.id)))).toBeNull();
   });
 
   it('measures progress from the last threshold reached', () => {

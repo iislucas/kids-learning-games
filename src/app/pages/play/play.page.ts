@@ -13,7 +13,8 @@ import { RoutingService } from '../../routing/routing.service';
 import { withParam } from '../../routing/routing.utils';
 import { AudioService } from '../../core/audio.service';
 import { Rng } from '../../core/rng';
-import { CROSSROADS, ProgressService } from '../../core/progress.service';
+import { ProgressService } from '../../core/progress.service';
+import { bookForRound } from '../../explore/sticker-books';
 import { Prize, PRIZES } from '../../core/prizes';
 import { Badge, badgesFor } from '../../core/mastery';
 import { MasteryService } from '../../core/mastery.service';
@@ -178,39 +179,34 @@ export class PlayPage {
   readonly stars = this.progress.stars;
 
   /**
-   * The stickers won right here, and only those: the backdrop is a record of
-   * what she has done in this place.
-   *
-   * Each area has its own collection. A challenge is its own spot within it,
-   * so the −7 and −8 families each show their own stickers rather than sharing
-   * the Take-Away Caves' heap. An ordinary round has no spot, so it shows the
-   * whole area's collection.
+   * The sticker book this round fills: the challenge being played, or for an
+   * ordinary round this game's level. Every game in every area has its own.
    */
-  readonly prizesWonHere = computed(() => {
-    const won = this.progress.prizesIn(this.areaOfRound());
-    const challengeId = this.challenge()?.id;
-    const here = challengeId ? won.filter((w) => w.place === challengeId) : won;
-    return here.map((w) => w.prize);
+  readonly bookOfRound = computed(() => {
+    const pack = this.pack();
+    return bookForRound(this.layout, {
+      packId: pack?.id ?? '',
+      level: this.level(),
+      challengeId: this.challenge()?.id,
+    });
   });
 
-  /** The area this round's stars and stickers count towards. */
-  readonly areaOfRound = computed(() => this.region()?.id ?? CROSSROADS);
+  /** This game's stickers, piled up behind it. */
+  readonly prizesWonHere = computed(() => this.progress.prizesIn(this.bookOfRound().book));
 
-  /** The next sticker this area is working towards, for the end of the round. */
+  /** The next sticker this game is working towards, for the end of the round. */
   readonly nextPrizeHere = computed(() => {
-    const area = this.areaOfRound();
-    const prize = this.progress.nextPrizeIn(area);
+    const book = this.bookOfRound().book;
+    const prize = this.progress.nextPrizeIn(book);
     if (!prize) return null;
     return {
       prize,
-      starsToGo: Math.max(0, prize.starsRequired - this.progress.areaStars(area)),
+      starsToGo: Math.max(0, prize.starsRequired - this.progress.starsIn(book)),
     };
   });
 
-  /** Stickers this area holds out of the whole catalogue. */
-  readonly areaPrizeCount = computed(
-    () => this.progress.prizesIn(this.areaOfRound()).length,
-  );
+  /** Stickers this game holds out of the whole catalogue. */
+  readonly bookPrizeCount = computed(() => this.prizesWonHere().length);
   readonly prizeCatalogueSize = PRIZES.length;
 
   /**
@@ -243,14 +239,6 @@ export class PlayPage {
       }) ?? null
     );
   });
-
-  /** The spot being played, else the region, recorded against any prize won. */
-  private placeOfRound(): string | undefined {
-    const challenge = this.challenge();
-    if (challenge) return challenge.id;
-    const region = this.region();
-    return region ? `region:${region.id}` : undefined;
-  }
 
   /** That region's ground tile — generated if the pack has one, else drawn. */
   readonly groundUrl = computed(() => {
@@ -362,10 +350,8 @@ export class PlayPage {
         wasCorrect: result.wasCorrect,
         streak: result.streak,
         level: this.level(),
-        // Each area earns its own stickers, and a sticker won here is left on
-        // the map where it was won.
-        area: this.areaOfRound(),
-        place: this.placeOfRound(),
+        // Each game earns its own stickers, which the map shows where it is.
+        ...this.bookOfRound(),
       });
       this.starsJustWon.set(outcome.starsAwarded);
       this.newPrizes.set(outcome.newPrizes);

@@ -97,7 +97,7 @@ interface SpotView {
 }
 
 interface PlacedPrize {
-  /** Area and sticker together: the same sticker can be won in every area. */
+  /** Book and sticker together: the same sticker can be won in every book. */
   key: string;
   prize: Prize;
   x: number;
@@ -271,19 +271,19 @@ export class MapPage {
   });
 
   /**
-   * Stickers shown where they were won. Every area has its own collection, so
-   * each area's ground fills up with its own stickers.
+   * Stickers shown where they were won. Every game has its own sticker book,
+   * so each spot gathers its own heap.
    *
-   * One won at a spot sits just beside that spot. One won in an ordinary round
-   * only knows its area, so it lies somewhere out in that area's ground. Only
-   * a sticker with no area at all gathers at the crossroads — which reads
-   * fine, as the place she set out from.
+   * A challenge's stickers sit just beside its spot. An ordinary round has no
+   * spot, so its stickers lie somewhere out in its area's ground. Only a
+   * sticker with no area at all gathers at the crossroads — which reads fine,
+   * as the place she set out from.
    */
   readonly placedPrizes = computed<PlacedPrize[]>(() =>
-    this.progress.wonPrizes().map(({ area, prize, place }) => {
-      const key = `${area}:${prize.id}`;
+    this.progress.wonPrizes().map(({ book, area, prize }) => {
+      const key = `${book}:${prize.id}`;
       const angle = noise(`${key}-angle`) * Math.PI * 2;
-      const spot = place ? spotFor(this.layout, place) : undefined;
+      const spot = spotFor(this.layout, book);
       if (spot) {
         // Around the spot, so several won at one place do not stack.
         const distance = 62 + noise(`${key}-dist`) * 46;

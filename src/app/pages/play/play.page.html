@@ -120,8 +120,8 @@
           }
 
           <p class="hint finish__stickers">
-            {{ region()?.emoji ?? '⭐' }} {{ areaPrizeCount() }} of
-            {{ prizeCatalogueSize }} stickers here
+            {{ bookPrizeCount() }} of {{ prizeCatalogueSize }} stickers in this
+            game
             @if (nextPrizeHere(); as next) {
               · next {{ next.prize.emoji }} in {{ next.starsToGo }}
               {{ next.starsToGo === 1 ? 'star' : 'stars' }}

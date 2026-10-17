@@ -2,7 +2,7 @@
 
 A small collection of educational games for my 7-year-old: arithmetic, spelling,
 French and a nature quiz, plus counting for younger children. Answer correctly, the character celebrates, and stars
-accumulate towards stickers — every area of the map has its own book of 30. There is also a landscape to walk
+accumulate towards stickers — every game in every area of the map has its own book of 30. There is also a landscape to walk
 around, with a badge to win at every place on it.
 
 Built with Angular 22 (zoneless, signals, standalone components), no backend, and

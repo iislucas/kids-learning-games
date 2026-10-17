@@ -11,12 +11,13 @@
         <strong>{{ collectedCount() }}</strong>
         {{ collectedCount() === 1 ? 'sticker' : 'stickers' }} collected
       </p>
-      @if (nextPrize(); as next) {
+      @let next = nextPrize();
+      @if (next) {
         <p class="hint">
           Next up: {{ next.prize.emoji }} {{ next.prize.name }} in
           {{ next.starsToGo }} {{ next.starsToGo === 1 ? 'star' : 'stars' }}
-          @if (nextPrizeArea(); as area) {
-            at {{ area.emoji }} {{ area.name }}
+          @if (nextPrizeBook(); as book) {
+            at {{ book.emoji }} {{ book.name }}
           }
         </p>
       } @else {
@@ -37,36 +38,42 @@
       <span aria-hidden="true">📒</span>
       Sticker books
     </h2>
-    <p class="hint badgekey">Every place has its own book of {{ perPlace }} stickers.</p>
-    <ul class="books">
-      @for (book of areas(); track book.region.id) {
-        <li
-          class="book"
-          [attr.aria-label]="
-            book.region.name + ', ' + book.owned + ' of ' + perPlace + ' stickers'
-          "
-        >
-          <span class="book__emoji" aria-hidden="true">{{ book.region.emoji }}</span>
-          <span class="book__body">
-            <span class="book__name">
-              {{ book.region.name }}
-              <span class="collection__count">{{ book.owned }}/{{ perPlace }}</span>
-            </span>
+    <p class="hint badgekey">
+      Every game has its own book of {{ perBook }} stickers. Stars won in a game
+      fill its book.
+    </p>
+    @for (area of areas(); track area.id) {
+      <h3 class="places__pack">
+        <span aria-hidden="true">{{ area.emoji }}</span>
+        {{ area.name }}
+        <span class="collection__count">{{ area.owned }} stickers</span>
+      </h3>
+      <ul class="books">
+        @for (book of area.books; track book.key) {
+          <li
+            class="book"
+            [class.book--started]="book.owned > 0"
+            [attr.title]="book.name"
+            [attr.aria-label]="
+              book.name + ', ' + book.owned + ' of ' + perBook + ' stickers'
+            "
+          >
+            <span class="book__label">{{ book.short }}</span>
+            <span class="book__count">{{ book.owned }}/{{ perBook }}</span>
             @if (book.next; as next) {
-              <span class="hint">
-                Next {{ next.emoji }} in {{ book.starsToGo }}
-                {{ book.starsToGo === 1 ? 'star' : 'stars' }}
+              <span class="book__next" aria-hidden="true">
+                {{ next.emoji }} {{ book.starsToGo }}⭐
               </span>
               <span class="bar" aria-hidden="true">
                 <span class="bar__fill" [style.width.%]="book.progressPercent"></span>
               </span>
             } @else {
-              <span class="hint">Book full! 🏆</span>
+              <span class="book__next" aria-hidden="true">🏆</span>
             }
-          </span>
-        </li>
-      }
-    </ul>
+          </li>
+        }
+      </ul>
+    }
   </section>
 
   <section class="collection">

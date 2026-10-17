@@ -1,12 +1,12 @@
 /**
  * The prize catalogue.
  *
- * Every area on the map has its own copy of the whole catalogue: stars earned
- * in an area unlock that area's stickers, so each place fills up with its own
- * collection and a new place starts paying out again from the first sticker.
- * The same sticker can therefore be owned several times over, once per area.
+ * Every game in every area has its own copy of the whole catalogue — its own
+ * sticker book (see `explore/sticker-books.ts`). Stars earned in a game unlock
+ * that game's stickers, so a new game starts paying out again from the first
+ * sticker, and the same sticker can be owned many times over, once per book.
  *
- * Within an area, prizes unlock in a fixed order as stars accumulate, and are interleaved
+ * Within a book, prizes unlock in a fixed order as stars accumulate, and are interleaved
  * across collections on purpose: being two stickers short of finishing the
  * Space set while also having started Ocean is a much stronger pull than
  * completing one set before seeing the next exists.
@@ -25,7 +25,7 @@ export interface Prize {
   name: string;
   emoji: string;
   setId: string;
-  /** Stars earned in one area needed to unlock this there. */
+  /** Stars earned in one book needed to unlock this there. */
   starsRequired: number;
 }
 
@@ -73,12 +73,12 @@ const PRIZE_ORDER: [setId: string, id: string, name: string, emoji: string][] = 
 ];
 
 /**
- * Star cost of the nth prize, counted in the stars earned in one area.
+ * Star cost of the nth prize, counted in the stars earned in one book.
  *
  * A ten-question round with a decent streak pays roughly 15-25 stars. That
- * puts an area's first sticker three correct answers in and its first handful
- * within a round or two, while the full set of 30 in one area is still a long
- * project. Because every area counts from zero, moving to a new place always
+ * puts a book's first sticker three correct answers in and its first handful
+ * within a round or two, while the full set of 30 in one book is still a long
+ * project. Because every book counts from zero, trying a new game always
  * brings a quick sticker.
  */
 export function starsForPrizeIndex(index: number): number {
@@ -101,7 +101,7 @@ export function prizesInSet(setId: string): Prize[] {
   return PRIZES.filter((prize) => prize.setId === setId);
 }
 
-/** Every prize whose star threshold has been reached in one area. */
+/** Every prize whose star threshold has been reached in one book. */
 export function prizesUnlockedAt(stars: number): Prize[] {
   return PRIZES.filter((prize) => prize.starsRequired <= stars);
 }
@@ -118,26 +118,26 @@ export function completedSets(unlockedIds: ReadonlySet<string>): PrizeSet[] {
 }
 
 /**
- * What an area holds after earning `stars` there: everything it already had,
+ * What a book holds after earning `stars` in it: everything it already had,
  * plus everything the stars now reach. Held prizes are kept even below their
- * threshold (stickers carried over from before areas had their own), so a
+ * threshold (stickers carried over from before each game had its own), so a
  * sticker is never taken away. Returned in unlock order.
  */
-export function areaPrizesAt(stars: number, held: ReadonlySet<string>): Prize[] {
+export function prizesHeldAt(stars: number, held: ReadonlySet<string>): Prize[] {
   return PRIZES.filter((prize) => held.has(prize.id) || prize.starsRequired <= stars);
 }
 
-/** The next sticker an area is working towards, or null once it has them all. */
-export function nextAreaPrize(held: ReadonlySet<string>): Prize | null {
+/** The next sticker a book is working towards, or null once it has them all. */
+export function nextPrizeToEarn(held: ReadonlySet<string>): Prize | null {
   return PRIZES.find((prize) => !held.has(prize.id)) ?? null;
 }
 
-/** 0..1 towards an area's next sticker, or 1 when it has them all. */
+/** 0..1 towards a book's next sticker, or 1 when it has them all. */
 export function progressTowardNextPrize(
   stars: number,
   held: ReadonlySet<string>,
 ): number {
-  const next = nextAreaPrize(held);
+  const next = nextPrizeToEarn(held);
   if (!next) return 1;
   const reached = PRIZES.filter((prize) => prize.starsRequired <= stars);
   const floor = reached.length ? reached[reached.length - 1].starsRequired : 0;
